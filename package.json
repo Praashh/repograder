@@ -1,0 +1,38 @@
+{
+  "name": "repograder",
+  "version": "0.1.1",
+  "description": "CLI that scores a codebase's readiness for AI coding agents across 5 dimensions.",
+  "bin": {
+    "repograder": "dist/bin/cli.js"
+  },
+  "main": "dist/src/score.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "ai",
+    "agents",
+    "cli",
+    "codebase",
+    "readiness",
+    "llm",
+    "devtools",
+    "scanner"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build",
+    "test": "npm run build && node dist/test/smoke.js"
+  },
+  "license": "MIT",
+  "author": "praashh",
+  "engines": {
+    "node": ">=16"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
