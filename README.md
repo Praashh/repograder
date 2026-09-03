@@ -22,7 +22,6 @@ Or install globally:
 npm install -g repograder
 ```
 
-*(Also available via alias command: `agent-ready`)*
 
 ---
 
