@@ -1,8 +1,8 @@
-
 export interface ScanResult {
   score: number;
   evidence: string[];
   blocking: boolean;
+  remediationTips?: string[];
 }
 
 export interface DimensionResult extends ScanResult {
@@ -26,5 +26,7 @@ export interface RunAllResult {
   results: DimensionResult[];
   ceiling: number;
   level: Level;
+  indexScore: number;
+  grade: string;
   remediation: DimensionResult[];
 }

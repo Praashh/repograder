@@ -14,19 +14,31 @@ function colorForScore(score: number): string {
   return GREEN;
 }
 
+function hexColorForScore(score: number): string {
+  if (score <= 2) return 'red';
+  if (score === 3) return 'yellow';
+  if (score === 4) return 'green';
+  return 'brightgreen';
+}
+
 function bar(score: number, max = 5): string {
   const filled = '█'.repeat(score);
   const empty = '░'.repeat(max - score);
   return `${colorForScore(score)}${filled}${DIM}${empty}${RESET}`;
 }
 
-export function renderText({ results, ceiling, level, remediation }: RunAllResult, targetPath: string): string {
+export function renderText(
+  { results, ceiling, level, indexScore, grade, remediation }: RunAllResult,
+  targetPath: string,
+): string {
   const lines: string[] = [];
   lines.push('');
   lines.push(`${BOLD}Agent Readiness Scan${RESET}  ${DIM}${targetPath}${RESET}`);
   lines.push('');
   lines.push(
-    `${BOLD}Readiness level: ${colorForScore(ceiling)}${level.name} (${ceiling}/5)${RESET}  ${DIM}— set by lowest-scoring dimension, not the average${RESET}`,
+    `${BOLD}Readiness level: ${colorForScore(ceiling)}${level.name} (${ceiling}/5)${RESET}  ` +
+      `${BOLD}Index: ${colorForScore(Math.round(indexScore / 20))}${indexScore}/100 (${grade})${RESET}  ` +
+      `${DIM}— ceiling set by lowest dimension${RESET}`,
   );
   lines.push('');
 
@@ -36,37 +48,119 @@ export function renderText({ results, ceiling, level, remediation }: RunAllResul
     for (const line of r.evidence) {
       lines.push(`        ${DIM}${line}${RESET}`);
     }
+    if (r.remediationTips && r.remediationTips.length > 0 && r.score < 5) {
+      for (const tip of r.remediationTips) {
+        lines.push(`        ${CYAN}↳ Fix: ${tip}${RESET}`);
+      }
+    }
     lines.push('');
   }
 
   lines.push(`${BOLD}${CYAN}Priority order for improvement:${RESET}`);
-  remediation
-    .filter((r) => r.score < 5)
-    .slice(0, 5)
-    .forEach((r, i) => {
+  const needsFix = remediation.filter((r) => r.score < 5);
+  if (needsFix.length === 0) {
+    lines.push(
+      `  ${GREEN}All measured dimensions score 5/5. Repository is autonomous-ready!${RESET}`,
+    );
+  } else {
+    needsFix.slice(0, 5).forEach((r, i) => {
+      const tip = r.remediationTips && r.remediationTips[0] ? ` — ${r.remediationTips[0]}` : '';
       lines.push(
-        `  ${i + 1}. ${r.label} (currently ${r.score}/5)${r.blocking ? DIM + '  — blocking dimension' + RESET : ''}`,
+        `  ${i + 1}. ${BOLD}${r.label}${RESET} (currently ${r.score}/5)${r.blocking ? ' [blocking]' : ''}${tip}`,
       );
     });
-  if (remediation.every((r) => r.score === 5)) {
-    lines.push(`  ${GREEN}All measured dimensions score 5/5.${RESET}`);
   }
   lines.push('');
 
   return lines.join('\n');
 }
 
-export function renderJSON({ results, ceiling, level, remediation }: RunAllResult, targetPath: string): string {
+export function renderJSON(
+  { results, ceiling, level, indexScore, grade, remediation }: RunAllResult,
+  targetPath: string,
+): string {
   return JSON.stringify(
     {
       target: targetPath,
       scannedAt: new Date().toISOString(),
       readinessLevel: level.name,
       ceilingScore: ceiling,
+      indexScore,
+      grade,
       dimensions: results,
-      remediationOrder: remediation.map((r) => r.id),
+      remediationOrder: remediation.map((r) => ({
+        id: r.id,
+        score: r.score,
+        blocking: r.blocking,
+        remediationTips: r.remediationTips ?? [],
+      })),
     },
     null,
     2,
   );
+}
+
+export function renderMarkdown(
+  { results, ceiling, level, indexScore, grade, remediation }: RunAllResult,
+  targetPath: string,
+): string {
+  const lines: string[] = [];
+  lines.push('# 🤖 Agent Readiness Report');
+  lines.push('');
+  lines.push(`**Target**: \`${targetPath}\`  `);
+  lines.push(`**Scanned at**: ${new Date().toUTCString()}  `);
+  lines.push(
+    `**Readiness Level**: **${level.name} (${ceiling}/5)** &nbsp;|&nbsp; **Readiness Index**: **${indexScore}/100 (${grade})**`,
+  );
+  lines.push('');
+  lines.push(
+    '> *Readiness level is governed by the Weakest Link Principle (minimum score across dimensions).*',
+  );
+  lines.push('');
+  lines.push('### Score Breakdown');
+  lines.push('');
+  lines.push('| Dimension | Score | Status | Key Evidence |');
+  lines.push('|:---|:---:|:---:|:---|');
+
+  for (const r of results) {
+    const icon = r.score >= 4 ? '✅' : r.score === 3 ? '⚠️' : '❌';
+    const blockingBadge = r.blocking ? ' *(blocking)*' : '';
+    const evidenceSummary = r.evidence.join('<br>');
+    lines.push(`| **${r.label}**${blockingBadge} | ${r.score}/5 | ${icon} | ${evidenceSummary} |`);
+  }
+
+  lines.push('');
+  lines.push('### 🛠️ Priority Remediation Actions');
+  lines.push('');
+
+  const needsFix = remediation.filter((r) => r.score < 5);
+  if (needsFix.length === 0) {
+    lines.push('🎉 **All measured dimensions score 5/5! Repository is autonomous-ready.**');
+  } else {
+    needsFix.forEach((r, i) => {
+      const blockingNotice = r.blocking ? ' **[Blocking Dimension]**' : '';
+      lines.push(`${i + 1}. **${r.label}** (Score: ${r.score}/5)${blockingNotice}`);
+      if (r.remediationTips && r.remediationTips.length > 0) {
+        for (const tip of r.remediationTips) {
+          lines.push(`   - 💡 ${tip}`);
+        }
+      }
+    });
+  }
+
+  lines.push('');
+  lines.push('---');
+  lines.push('*Generated by [repograder](https://github.com/Praashh/repograder)*');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+export function renderBadge({ ceiling, level }: RunAllResult): string {
+  return JSON.stringify({
+    schemaVersion: 1,
+    label: 'agent readiness',
+    message: `${level.name} (${ceiling}/5)`,
+    color: hexColorForScore(ceiling),
+  });
 }

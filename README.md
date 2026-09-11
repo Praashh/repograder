@@ -2,9 +2,12 @@
 
 > Score how ready a codebase is for AI coding agents to work in — language-agnostic, zero-config, fast, and deterministic.
 
-AI coding agents (like Claude Code, Cursor, Copilot Workspace, Codex, Devin) struggle or fail silently when a codebase lacks test harnesses, stale documentation, monster files, or missing linters. 
+[![CI](https://img.shields.io/badge/CI-passing-brightgreen)](https://github.com/Praashh/repograder/actions)
+[![Agent Readiness](https://img.shields.io/badge/agent%20readiness-Autonomous--ready%20(5%2F5)-brightgreen)](https://github.com/Praashh/repograder)
 
-**`repograder`** evaluates your repository across 5 fundamental dimensions, detects potential failure modes, and outputs a readiness scorecard with an actionable remediation priority list.
+AI coding agents (like Claude Code, Cursor, Copilot Workspace, Codex, Devin) struggle or fail silently when a codebase lacks test harnesses, stale documentation, monster files, or missing linters.
+
+**`repograder`** evaluates your repository across 5 fundamental dimensions, detects potential failure modes, outputs a readiness scorecard with a granular **Readiness Index (0–100)**, and generates actionable, copy-pasteable remediation commands.
 
 ---
 
@@ -22,7 +25,6 @@ Or install globally:
 npm install -g repograder
 ```
 
-
 ---
 
 ## Usage
@@ -34,94 +36,60 @@ repograder
 # Explicit scan subcommand
 repograder scan
 
+# Scaffold a tailored AGENTS.md for your stack
+repograder init
+
 # Scan another directory or project
 repograder scan ../my-service
 
+# Output GitHub Actions-ready Markdown (ideal for $GITHUB_STEP_SUMMARY)
+repograder --markdown >> $GITHUB_STEP_SUMMARY
+
 # Output machine-readable JSON (useful for CI/CD pipelines)
 repograder --json > report.json
+
+# Fail CI pipeline if readiness level is below threshold
+repograder --fail-under 4
+
+# Output Shields.io badge schema
+repograder --badge
 ```
 
-### Options
+### Options & Subcommands
 
-| Flag | Description |
-|---|---|
-| `[path]` | Path to repository to scan (defaults to current directory `.`) |
-| `--json` | Output machine-readable JSON instead of console report |
-| `-h, --help` | Show usage help and options |
+| Command / Flag       | Description                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `[path]`             | Path to repository to scan (defaults to current directory `.`)                             |
+| `init [path]`        | Scaffold a tailored `AGENTS.md` context file based on detected tools and package manifests |
+| `--format <type>`    | Output format: `text` (default), `json`, `markdown`, `badge`                               |
+| `--markdown`, `--md` | Shorthand for `--format markdown`                                                          |
+| `--json`             | Shorthand for `--format json`                                                              |
+| `--badge`            | Output Shields.io badge endpoint JSON schema                                               |
+| `--fail-under <1-5>` | Exit with code 1 if ceiling readiness score is below this threshold                        |
+| `--force`, `-f`      | Overwrite existing `AGENTS.md` when running `init`                                         |
+| `-h, --help`         | Show usage help and options                                                                |
 
 ---
 
-## Example Output
+## Active Scaffolding (`repograder init`)
 
-```text
-Agent Readiness Scan  /path/to/my-project
+Don't have an `AGENTS.md` yet? Run:
 
-Readiness level: Supervised (3/5)  — set by lowest-scoring dimension, not the average
-
-  █████  5/5  Test signal & CI [blocking]
-        Found test directory: test
-        Found CI workflow: .github/workflows/ci.yml
-        CI executes test suites
-
-  ███░░  3/5  Agent context freshness 
-        Found AGENTS.md (modified 18 days ago)
-        Substantive context provided (45 lines)
-
-  ████░  4/5  File & module legibility 
-        Median source file: 64 lines (p90: 210 lines)
-        Max file length: 340 lines (within recommended bounds)
-
-  ███░░  3/5  Dependency reproducibility 
-        Found package-lock.json
-        No automated dependency update bot configuration detected
-
-  █████  5/5  Standards enforcement tooling 
-        Linter configured: eslint
-        Pre-commit hooks detected: .husky
-
-Priority order for improvement:
-  1. Agent context freshness (currently 3/5)
-  2. Dependency reproducibility (currently 3/5)
+```bash
+repograder init
 ```
 
----
+`repograder` inspects your repository, detects your package managers, test runners, build scripts, and linters, and scaffolds a tailored, battle-tested `AGENTS.md` specifying:
 
-## How Scoring Works
-
-### The Weakest Link Principle
-The overall readiness score is the **minimum across all dimensions, not an average**. 
-
-An AI coding agent fails at the weakest link: a repository with clean modular code and great documentation will still fail if there are no tests for the agent to verify its changes against.
-
-### Readiness Levels
-
-| Level | Score | What it means for AI agents |
-|---|:---:|---|
-| **Autonomous-ready** | 5/5 | Agents can reliably plan, edit, run tests, and iterate with minimal supervision. |
-| **Capable** | 4/5 | Agents work well for most scoped tasks; minor context or tooling gaps. |
-| **Supervised** | 3/5 | Agents need human guidance and close review before merging changes. |
-| **Fragile** | 2/5 | High risk of hallucinated edits, broken builds, or regressions. |
-| **Not agent-ready** | 1/5 | Critical blocking gaps (e.g. no tests or verifiable execution signal). |
-
----
-
-## The 5 Dimensions
-
-| Dimension | Criticality | What it inspects |
-|---|:---:|---|
-| **Test signal & CI** | **Blocking** | Unit/integration test suites present; CI workflows detected that execute tests. |
-| **Agent context freshness** | Standard | `AGENTS.md`, `CLAUDE.md`, or repository instructions present, recent, and substantive. |
-| **File & module legibility** | Standard | Source file length distribution (median, p90, max). Flags monster files that blow context windows. |
-| **Dependency reproducibility** | Standard | Ecosystem-specific lockfiles present; automated update bot configs (`renovate`, `dependabot`). |
-| **Standards enforcement tooling** | Standard | Linter/formatter configurations present; automated pre-commit or CI hooks enforcing style. |
-
-All checks are **static, local, and zero-network** — no API keys required, deterministic, and safe for sensitive codebases.
+- One-click build and test commands
+- Coding conventions and modularity guidelines
+- Essential agent operating rules
 
 ---
 
 ## CI / CD Integration
 
-`repograder` exits with **code 1** if the codebase scores at Level 1 (**Not agent-ready**), and **code 0** otherwise.
+`repograder` is designed to run natively as a CI gate. By default, it exits with **code 1** if the codebase scores at Level 1 (**Not agent-ready**), and **code 0** otherwise. Use `--fail-under` to raise the bar for your team.
 
 ### GitHub Actions Example
 
@@ -141,18 +109,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npx repograder --json > readiness.json
-      - run: npx repograder
+      - run: npm ci
+      # Post rich markdown summary directly into the GitHub Actions run summary
+      - run: npx repograder --markdown >> $GITHUB_STEP_SUMMARY
+      # Fail PR if readiness score drops below Capable (4/5)
+      - run: npx repograder --fail-under 4
 ```
 
 ---
 
 ## Roadmap
 
+- [x] Auto-scaffold tailored `AGENTS.md` via `repograder init`
+- [x] Multi-agent modern rule detection (`.cursor/rules/`, `.github/copilot-instructions.md`, `.windsurfrules`)
+- [x] GitHub Step Summary Markdown export (`--markdown`)
+- [x] Shields.io badge generator (`--badge`)
+- [x] Configurable CI thresholds (`--fail-under <1-5>`)
+- [ ] Dedicated Type Safety & Static Verification scanner (`tsconfig.json`, `mypy`, `pyright`)
+- [ ] Local environment reproducibility scanner (devcontainers, Dockerfiles, `.nvmrc`)
 - [ ] `--config` to tune file-size thresholds and ecosystem overrides per team
 - [ ] GitHub Action bot to post scorecard diffs directly on pull requests
-- [ ] `--history` flag to track readiness trends over time in a local scorecard
-- [ ] Optional LLM deep pass for qualitative evaluations (e.g., API documentation clarity)
 
 ---
 

@@ -9,6 +9,7 @@ function percentile(sorted: number[], p: number): number {
 
 function scan(root: string): ScanResult {
   const evidence: string[] = [];
+  const remediationTips: string[] = [];
   const lineCounts: number[] = [];
 
   walk(root, (abs) => {
@@ -19,7 +20,7 @@ function scan(root: string): ScanResult {
 
   if (lineCounts.length === 0) {
     evidence.push('No recognized source files found to measure — check the target path.');
-    return { score: 3, evidence, blocking: false };
+    return { score: 3, evidence, remediationTips, blocking: false };
   }
 
   lineCounts.sort((a, b) => a - b);
@@ -39,15 +40,29 @@ function scan(root: string): ScanResult {
     score = 5;
   } else if (median <= 250 && p90 <= 600 && overPct < 5) {
     score = 4;
+    if (overThreshold > 0) {
+      remediationTips.push(
+        `Consider breaking down the ${overThreshold} file(s) over 500 lines into smaller submodules.`,
+      );
+    }
   } else if (median <= 400 && p90 <= 900 && overPct < 10) {
     score = 3;
+    remediationTips.push(
+      'Refactor large modules (>500 lines) into focused components to avoid blowing LLM context windows.',
+    );
   } else if (median <= 600 && overPct < 20) {
     score = 2;
+    remediationTips.push(
+      'High concentration of large files. Decompose monolithic files to reduce agent hallucination rates.',
+    );
   } else {
     score = 1;
+    remediationTips.push(
+      'Severe module bloat. Break down monster files into clean, decoupled files under 300 lines.',
+    );
   }
 
-  return { score, evidence, blocking: false };
+  return { score, evidence, remediationTips, blocking: false };
 }
 
 export const id = 'fileSize';

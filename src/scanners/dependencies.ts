@@ -18,13 +18,25 @@ interface DetectedEco {
 
 // [manifestFiles], [lockFiles] pairs per ecosystem
 const ECOSYSTEMS: EcosystemDef[] = [
-  { name: 'Node', manifest: ['package.json'], lock: ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'] },
-  { name: 'Python', manifest: ['pyproject.toml', 'requirements.txt', 'Pipfile'], lock: ['poetry.lock', 'Pipfile.lock', 'uv.lock'] },
+  {
+    name: 'Node',
+    manifest: ['package.json'],
+    lock: ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb', 'bun.lock'],
+  },
+  {
+    name: 'Python',
+    manifest: ['pyproject.toml', 'requirements.txt', 'Pipfile'],
+    lock: ['poetry.lock', 'Pipfile.lock', 'uv.lock'],
+  },
   { name: 'Rust', manifest: ['Cargo.toml'], lock: ['Cargo.lock'] },
   { name: 'Go', manifest: ['go.mod'], lock: ['go.sum'] },
   { name: 'Ruby', manifest: ['Gemfile'], lock: ['Gemfile.lock'] },
   { name: 'PHP', manifest: ['composer.json'], lock: ['composer.lock'] },
-  { name: 'Java/Gradle', manifest: ['build.gradle', 'build.gradle.kts'], lock: ['gradle.lockfile'] },
+  {
+    name: 'Java/Gradle',
+    manifest: ['build.gradle', 'build.gradle.kts'],
+    lock: ['gradle.lockfile'],
+  },
 ];
 
 const AUTOMATION_FILES = [
@@ -63,6 +75,7 @@ function isGitignored(root: string, filename: string): boolean {
 
 function scan(root: string): ScanResult {
   const evidence: string[] = [];
+  const remediationTips: string[] = [];
   const detected: DetectedEco[] = [];
 
   for (const eco of ECOSYSTEMS) {
@@ -76,7 +89,7 @@ function scan(root: string): ScanResult {
 
   if (detected.length === 0) {
     evidence.push('No recognized dependency manifest found (may be a manifest-less project).');
-    return { score: 3, evidence, blocking: false };
+    return { score: 3, evidence, remediationTips, blocking: false };
   }
 
   // A gitignored lockfile is as good as missing for reproducibility purposes
@@ -86,8 +99,16 @@ function scan(root: string): ScanResult {
   detected.forEach((d) => {
     if (!d.hasLock) {
       evidence.push(`${d.name}: manifest present, lockfile MISSING.`);
+      remediationTips.push(
+        `Generate and commit a lockfile for ${d.name} to ensure deterministic builds.`,
+      );
     } else if (d.lockIgnored) {
-      evidence.push(`${d.name}: lockfile present (${d.lockFile}) but it is listed in .gitignore — won't be available in CI or to agents cloning the repo.`);
+      evidence.push(
+        `${d.name}: lockfile present (${d.lockFile}) but it is listed in .gitignore — won't be available in CI or to agents cloning the repo.`,
+      );
+      remediationTips.push(
+        `Un-ignore ${d.lockFile} from .gitignore so agents and CI have fixed dependency trees.`,
+      );
     } else {
       evidence.push(`${d.name}: manifest present, lockfile present (${d.lockFile}).`);
     }
@@ -101,11 +122,14 @@ function scan(root: string): ScanResult {
     evidence.push('Automated dependency updates configured (Dependabot/Renovate).');
   } else if (withLock === detected.length) {
     score = 4;
+    remediationTips.push(
+      'Add Dependabot (.github/dependabot.yml) or Renovate to automate security & dependency updates.',
+    );
   } else {
     score = 3;
   }
 
-  return { score, evidence, blocking: false };
+  return { score, evidence, remediationTips, blocking: false };
 }
 
 export const id = 'dependencies';

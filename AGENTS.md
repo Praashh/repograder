@@ -1,20 +1,24 @@
 # AGENTS.md
 
 ## Overview
+
 CLI tool that scans a codebase and scores its readiness for AI coding agents
 across five language-agnostic dimensions: test signal & CI, agent context
 freshness, file/module legibility, dependency reproducibility, and standards
 enforcement tooling.
 
 ## Build & test
+
 - Install: `npm install`
 - Build: `npm run build` (compiles TypeScript → `dist/`)
 - Run: `node dist/bin/cli.js <path>`, `repograder scan <path>`, or `agent-ready scan <path>` (defaults to `.`)
 - Run tests: `npm test` (builds then runs smoke test)
 - Dev (watch mode): `npm run dev`
-- Lint: not yet configured (tracked as a known gap)
+- Lint: `npm run lint` (ESLint 9 with TypeScript config)
+- Format: `npm run format` (Prettier)
 
 ## Code style
+
 - TypeScript source in `src/` and `bin/`, compiled to `dist/` via `tsc`.
 - Output is CommonJS (Node16 module mode). No `"type": "module"` in package.json.
 - Each scanner lives in `src/scanners/*.ts` and exports `{ id, label, scan }`.
@@ -23,7 +27,8 @@ enforcement tooling.
   to a neutral score with an evidence note instead.
 
 ## Adding a new scanner
+
 1. Create `src/scanners/<name>.ts` following the existing shape.
 2. Import and add it to the `SCANNERS` array in `src/score.ts`.
-3. Scores are 1–5. The overall readiness level is the *minimum* across all
+3. Scores are 1–5. The overall readiness level is the _minimum_ across all
    scanners, not an average — don't change that without discussion.

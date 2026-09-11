@@ -2,17 +2,60 @@ import fs from 'fs';
 import path from 'path';
 
 export const IGNORE_DIRS = new Set([
-  'node_modules', '.git', 'dist', 'build', 'out', 'target', 'vendor',
-  '__pycache__', '.venv', 'venv', 'env', 'coverage', '.next', '.nuxt',
-  '.turbo', '.cache', 'bin', 'obj', '.gradle', '.idea', '.vscode',
-  'tmp', 'temp', '.pytest_cache', 'site-packages', '.tox',
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  'out',
+  'target',
+  'vendor',
+  '__pycache__',
+  '.venv',
+  'venv',
+  'env',
+  'coverage',
+  '.next',
+  '.nuxt',
+  '.turbo',
+  '.cache',
+  'bin',
+  'obj',
+  '.gradle',
+  '.idea',
+  '.vscode',
+  'tmp',
+  'temp',
+  '.pytest_cache',
+  'site-packages',
+  '.tox',
 ]);
 
 const SOURCE_EXT = new Set([
-  '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs',
-  '.py', '.rb', '.go', '.java', '.kt', '.swift',
-  '.c', '.h', '.cpp', '.cc', '.hpp', '.cs', '.rs',
-  '.php', '.scala', '.ex', '.exs', '.vue', '.svelte',
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.mjs',
+  '.cjs',
+  '.py',
+  '.rb',
+  '.go',
+  '.java',
+  '.kt',
+  '.swift',
+  '.c',
+  '.h',
+  '.cpp',
+  '.cc',
+  '.hpp',
+  '.cs',
+  '.rs',
+  '.php',
+  '.scala',
+  '.ex',
+  '.exs',
+  '.vue',
+  '.svelte',
 ]);
 
 type OnFile = (abs: string, rel: string, stat: fs.Stats) => void;
@@ -99,8 +142,12 @@ export function globExistsAnywhere(
   opts?: WalkOptions,
 ): string[] {
   const hits: string[] = [];
-  walk(root, (_abs, rel) => {
-    if (predicate(rel)) hits.push(rel);
-  }, opts);
+  walk(
+    root,
+    (_abs, rel) => {
+      if (predicate(rel)) hits.push(rel);
+    },
+    opts,
+  );
   return hits;
 }

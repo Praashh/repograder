@@ -48,22 +48,43 @@ function ciHasTestCommands(root: string): boolean {
     if (!fs.existsSync(p)) continue;
     try {
       const files = candidate.endsWith('workflows')
-        ? fs.readdirSync(p)
+        ? fs
+            .readdirSync(p)
             .filter((f: string) => f.endsWith('.yml') || f.endsWith('.yaml'))
             .map((f: string) => path.join(p, f))
         : [p];
       for (const file of files) {
         try {
           if (TEST_CMD_RE.test(fs.readFileSync(file, 'utf8'))) return true;
-        } catch { /* skip unreadable files */ }
+        } catch {
+          /* skip unreadable files */
+        }
       }
-    } catch { /* skip unreadable dirs */ }
+    } catch {
+      /* skip unreadable dirs */
+    }
   }
   return false;
 }
 
+function checkPackageJsonTest(root: string): { hasTestScript: boolean; isStub: boolean } {
+  const pkgPath = path.join(root, 'package.json');
+  if (!fs.existsSync(pkgPath)) return { hasTestScript: false, isStub: false };
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    if (!pkg.scripts || !pkg.scripts.test) return { hasTestScript: false, isStub: false };
+    const script = pkg.scripts.test.toLowerCase();
+    const isStub =
+      script.includes('no test specified') || script.includes('exit 1') || script.trim() === '';
+    return { hasTestScript: true, isStub };
+  } catch {
+    return { hasTestScript: false, isStub: false };
+  }
+}
+
 function scan(root: string): ScanResult {
   const evidence: string[] = [];
+  const remediationTips: string[] = [];
   let testFileCount = 0;
 
   walk(root, (_abs, rel) => {
@@ -72,37 +93,67 @@ function scan(root: string): ScanResult {
 
   const ciHit = hasCI(root);
   const ciRunsTests = ciHit ? ciHasTestCommands(root) : false;
+  const pkgTest = checkPackageJsonTest(root);
+
+  if (pkgTest.hasTestScript && pkgTest.isStub) {
+    evidence.push('package.json has a dummy test script stub (e.g. "no test specified").');
+    remediationTips.push('Update package.json "test" script with a real test runner command.');
+  }
 
   let score: number;
   if (testFileCount === 0 && !ciHit) {
     score = 1;
     evidence.push('No test files or CI configuration detected.');
+    remediationTips.push(
+      'Add unit tests (e.g. using Vitest, Jest, or Pytest) and a CI workflow (.github/workflows/ci.yml).',
+    );
   } else if (testFileCount === 0 && ciHit) {
     if (ciRunsTests) {
       score = 3;
-      evidence.push(`CI configured (${ciHit}) — no test files in repo, but CI workflow invokes a test runner.`);
+      evidence.push(
+        `CI configured (${ciHit}) — no test files in repo, but CI workflow invokes a test runner.`,
+      );
+      remediationTips.push('Add local test files matching the test runner invoked in CI.');
     } else {
       score = 2;
-      evidence.push(`CI configured (${ciHit}) but no test files detected and no test runner invocation found in workflow.`);
+      evidence.push(
+        `CI configured (${ciHit}) but no test files detected and no test runner invocation found in workflow.`,
+      );
+      remediationTips.push('Add a test step to your CI workflow and add test files.');
     }
   } else if (testFileCount > 0 && !ciHit) {
     score = 3;
-    evidence.push(`${testFileCount} test file(s) found, but no CI configuration detected — signal isn't automatic.`);
+    evidence.push(
+      `${testFileCount} test file(s) found, but no CI configuration detected — signal isn't automatic.`,
+    );
+    remediationTips.push(
+      'Configure GitHub Actions or GitLab CI to automatically run tests on pull requests.',
+    );
   } else {
     // Both test files and CI present
     if (testFileCount >= 5 && ciRunsTests) {
       score = 5;
-      evidence.push(`${testFileCount} test file(s) found, wired to CI (${ciHit}), test runner confirmed in workflow.`);
+      evidence.push(
+        `${testFileCount} test file(s) found, wired to CI (${ciHit}), test runner confirmed in workflow.`,
+      );
     } else if (testFileCount >= 5) {
       score = 4;
-      evidence.push(`${testFileCount} test file(s) found, wired to CI (${ciHit}) — no explicit test runner invocation detected in workflow.`);
+      evidence.push(
+        `${testFileCount} test file(s) found, wired to CI (${ciHit}) — no explicit test runner invocation detected in workflow.`,
+      );
+      remediationTips.push(
+        'Ensure CI workflow explicitly invokes the test runner command (e.g. npm test, pytest).',
+      );
     } else {
       score = 4;
       evidence.push(`${testFileCount} test file(s) found, wired to CI (${ciHit}).`);
+      remediationTips.push(
+        'Expand test suite to 5+ test files for complete regression protection across all modules.',
+      );
     }
   }
 
-  return { score, evidence, blocking: true };
+  return { score, evidence, remediationTips, blocking: true };
 }
 
 export const id = 'tests';
