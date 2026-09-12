@@ -4,8 +4,9 @@ import * as context from './scanners/context';
 import * as fileSize from './scanners/fileSize';
 import * as dependencies from './scanners/dependencies';
 import * as standards from './scanners/standards';
+import * as typeSafety from './scanners/typeSafety';
 
-const SCANNERS: Scanner[] = [tests, context, fileSize, dependencies, standards];
+const SCANNERS: Scanner[] = [tests, context, fileSize, dependencies, standards, typeSafety];
 
 const LEVELS: Level[] = [
   { min: 1, max: 1, name: 'Not agent-ready' },

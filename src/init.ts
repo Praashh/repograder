@@ -27,6 +27,7 @@ export function initAgentsMd(
   const buildCommands: string[] = [];
   const testCommands: string[] = [];
   const lintCommands: string[] = [];
+  const typecheckCommands: string[] = [];
 
   const pkgPath = path.join(targetDir, 'package.json');
   if (fs.existsSync(pkgPath)) {
@@ -38,6 +39,10 @@ export function initAgentsMd(
         if (pkg.scripts.build) buildCommands.push(`npm run build`);
         if (pkg.scripts.test) testCommands.push(`npm test`);
         if (pkg.scripts.lint) lintCommands.push(`npm run lint`);
+        if (pkg.scripts.typecheck) typecheckCommands.push(`npm run typecheck`);
+        else if (pkg.scripts['type-check']) typecheckCommands.push(`npm run type-check`);
+        else if (fs.existsSync(path.join(targetDir, 'tsconfig.json')))
+          typecheckCommands.push(`npx tsc --noEmit`);
         if (pkg.scripts.dev) buildCommands.push(`npm run dev (development mode)`);
       }
     } catch {
@@ -89,6 +94,10 @@ export function initAgentsMd(
 
   if (lintCommands.length > 0) {
     lintCommands.forEach((cmd) => sections.push(`- Lint: \`${cmd}\``));
+  }
+
+  if (typecheckCommands.length > 0) {
+    typecheckCommands.forEach((cmd) => sections.push(`- Typecheck: \`${cmd}\``));
   }
 
   sections.push('');

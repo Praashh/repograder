@@ -3,11 +3,11 @@
 > Score how ready a codebase is for AI coding agents to work in — language-agnostic, zero-config, fast, and deterministic.
 
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen)](https://github.com/Praashh/repograder/actions)
-[![Agent Readiness](https://img.shields.io/badge/agent%20readiness-Autonomous--ready%20(5%2F5)-brightgreen)](https://github.com/Praashh/repograder)
+[![Agent Readiness](<https://img.shields.io/badge/agent%20readiness-Autonomous--ready%20(5%2F5)-brightgreen>)](https://github.com/Praashh/repograder)
 
 AI coding agents (like Claude Code, Cursor, Copilot Workspace, Codex, Devin) struggle or fail silently when a codebase lacks test harnesses, stale documentation, monster files, or missing linters.
 
-**`repograder`** evaluates your repository across 5 fundamental dimensions, detects potential failure modes, outputs a readiness scorecard with a granular **Readiness Index (0–100)**, and generates actionable, copy-pasteable remediation commands.
+**`repograder`** evaluates your repository across 6 fundamental dimensions, detects potential failure modes, outputs a readiness scorecard with a granular **Readiness Index (0–100)**, and generates actionable, copy-pasteable remediation commands.
 
 ---
 
@@ -118,17 +118,30 @@ jobs:
 
 ---
 
-## Roadmap
+## Roadmap & Future Goals
+
+### Core Scanners & Engine
 
 - [x] Auto-scaffold tailored `AGENTS.md` via `repograder init`
 - [x] Multi-agent modern rule detection (`.cursor/rules/`, `.github/copilot-instructions.md`, `.windsurfrules`)
-- [x] GitHub Step Summary Markdown export (`--markdown`)
-- [x] Shields.io badge generator (`--badge`)
+- [x] Dedicated Type Safety & Static Verification scanner (`tsconfig.json`, `mypy`, `pyright`, Rust, Go)
+- [ ] Local environment reproducibility scanner (devcontainers, `Dockerfile`, `.nvmrc`, `.python-version`)
+- [ ] Monorepo & multi-package workspace support (pnpm workspaces, Turborepo, Cargo workspaces)
+- [ ] Interactive remediation (`repograder fix`) to auto-create missing `.env.example`, `.gitignore` entries, and stubs
+
+### CLI & Configuration
+
 - [x] Configurable CI thresholds (`--fail-under <1-5>`)
-- [ ] Dedicated Type Safety & Static Verification scanner (`tsconfig.json`, `mypy`, `pyright`)
-- [ ] Local environment reproducibility scanner (devcontainers, Dockerfiles, `.nvmrc`)
-- [ ] `--config` to tune file-size thresholds and ecosystem overrides per team
-- [ ] GitHub Action bot to post scorecard diffs directly on pull requests
+- [x] Rich Markdown export for GitHub Actions summaries (`--markdown`)
+- [x] Shields.io endpoint badge generator (`--badge`)
+- [ ] Custom configuration (`repograder.config.json` / `--config`) for per-project thresholds and rules
+- [ ] SARIF & Code Climate export formats (`--format sarif`) for GitHub Code Scanning integration
+
+### 🤖 CI/CD & Integrations
+
+- [ ] GitHub Action bot to post scorecard diffs and regressions directly on pull requests
+- [ ] Pre-commit hook plugin (`repograder` git hook integration)
+- [ ] Slack / Discord webhook alerting for repository readiness drops
 
 ---
 

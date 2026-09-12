@@ -3,9 +3,9 @@
 ## Overview
 
 CLI tool that scans a codebase and scores its readiness for AI coding agents
-across five language-agnostic dimensions: test signal & CI, agent context
-freshness, file/module legibility, dependency reproducibility, and standards
-enforcement tooling.
+across six language-agnostic dimensions: test signal & CI, agent context
+freshness, file/module legibility, dependency reproducibility, standards
+enforcement tooling, and type safety & static verification.
 
 ## Build & test
 

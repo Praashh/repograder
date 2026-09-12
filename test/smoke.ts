@@ -6,7 +6,7 @@ import { renderJSON, renderText, renderMarkdown, renderBadge } from '../src/repo
 const repoRoot = path.resolve(__dirname, '../..');
 const result = runAll(repoRoot);
 
-assert.strictEqual(result.results.length, 5, 'expected 5 dimension scanners to run');
+assert.strictEqual(result.results.length, 6, 'expected 6 dimension scanners to run');
 assert.ok(result.ceiling >= 1 && result.ceiling <= 5, 'ceiling should be in range 1-5');
 assert.ok(result.indexScore >= 0 && result.indexScore <= 100, 'indexScore should be 0-100');
 assert.ok(result.grade.length > 0, 'grade should not be empty');

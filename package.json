@@ -1,7 +1,7 @@
 {
   "name": "repograder",
-  "version": "0.1.2",
-  "description": "CLI that scores a codebase's readiness for AI coding agents across 5 dimensions.",
+  "version": "0.1.3",
+  "description": "CLI that scores a codebase's readiness for AI coding agents across 6 dimensions.",
   "bin": {
     "repograder": "dist/bin/cli.js"
   },
@@ -26,7 +26,7 @@
     "lint": "eslint src/ bin/ test/",
     "format": "prettier --write .",
     "prepublishOnly": "npm run build",
-    "test": "npm run build && node dist/test/smoke.js && node dist/test/context.test.js && node dist/test/standards.test.js && node dist/test/dependencies.test.js && node dist/test/init.test.js"
+    "test": "npm run build && node dist/test/smoke.js && node dist/test/context.test.js && node dist/test/standards.test.js && node dist/test/dependencies.test.js && node dist/test/init.test.js && node dist/test/typeSafety.test.js"
   },
   "license": "MIT",
   "author": "praashh",
