@@ -2,12 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import { walk } from '../lib/walk';
 import type { ScanResult } from '../types';
+import { detectWorkspaces } from '../lib/workspace';
 
 const TEST_PATH_RE = /(^|\/)(tests?|__tests__|spec)(\/|$)|(\.|_)(test|spec)\.[a-z0-9]+$/i;
 
 // Matches actual test runner invocations inside CI YAML files
 const TEST_CMD_RE =
-  /\b(npm\s+(run\s+)?test|yarn\s+(run\s+)?test|pnpm\s+(run\s+)?test|jest|vitest|mocha|pytest|go\s+test|cargo\s+test|rspec|phpunit|mvn\s+test|gradle\s+test|bun\s+test)\b/i;
+  /\b(npm\s+(run\s+)?test|yarn\s+(run\s+|workspaces\s+run\s+)?test|pnpm\s+(-r\s+|--filter\s+\S+\s+)?(run\s+)?test|turbo(\s+run)?\s+test|nx\s+(run-many\s+-t|run)\s+test|lerna\s+run\s+test|jest|vitest|mocha|pytest|go\s+test|cargo\s+test|rspec|phpunit|mvn\s+test|gradle\s+test|bun\s+test)\b/i;
 
 const CI_CANDIDATES = [
   '.github/workflows',
@@ -68,18 +69,33 @@ function ciHasTestCommands(root: string): boolean {
 }
 
 function checkPackageJsonTest(root: string): { hasTestScript: boolean; isStub: boolean } {
-  const pkgPath = path.join(root, 'package.json');
-  if (!fs.existsSync(pkgPath)) return { hasTestScript: false, isStub: false };
-  try {
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-    if (!pkg.scripts || !pkg.scripts.test) return { hasTestScript: false, isStub: false };
-    const script = pkg.scripts.test.toLowerCase();
-    const isStub =
-      script.includes('no test specified') || script.includes('exit 1') || script.trim() === '';
-    return { hasTestScript: true, isStub };
-  } catch {
-    return { hasTestScript: false, isStub: false };
+  const workspace = detectWorkspaces(root);
+  const targets = [root, ...workspace.packages.map((p) => p.path)];
+
+  let foundTest = false;
+  let allStubs = true;
+
+  for (const dir of targets) {
+    const pkgPath = path.join(dir, 'package.json');
+    if (!fs.existsSync(pkgPath)) continue;
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      if (!pkg.scripts || !pkg.scripts.test) continue;
+      const script = pkg.scripts.test.toLowerCase();
+      const isStub =
+        script.includes('no test specified') || script.includes('exit 1') || script.trim() === '';
+      foundTest = true;
+      if (!isStub) {
+        allStubs = false;
+        break;
+      }
+    } catch {
+      // ignore
+    }
   }
+
+  if (!foundTest) return { hasTestScript: false, isStub: false };
+  return { hasTestScript: true, isStub: allStubs };
 }
 
 function scan(root: string): ScanResult {

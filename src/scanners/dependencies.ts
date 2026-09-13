@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { ScanResult } from '../types';
+import { detectWorkspaces } from '../lib/workspace';
 
 interface EcosystemDef {
   name: string;
@@ -78,18 +79,42 @@ function scan(root: string): ScanResult {
   const remediationTips: string[] = [];
   const detected: DetectedEco[] = [];
 
+  const workspace = detectWorkspaces(root);
+  const checkDirs = [root, ...workspace.packages.map((p) => p.path)];
+
   for (const eco of ECOSYSTEMS) {
-    const hasManifest = exists(root, eco.manifest);
+    const hasManifest = checkDirs.some((d) => exists(d, eco.manifest));
     if (!hasManifest) continue;
-    const lockFile = findFirst(root, eco.lock);
+
+    let lockFile = findFirst(root, eco.lock);
+    let lockIgnored = false;
+    if (lockFile !== null) {
+      lockIgnored = isGitignored(root, lockFile);
+    } else {
+      // Check if subprojects have local lockfiles
+      for (const pkg of workspace.packages) {
+        const subLock = findFirst(pkg.path, eco.lock);
+        if (subLock) {
+          lockFile = path.join(pkg.relPath, subLock);
+          lockIgnored = isGitignored(root, subLock);
+          break;
+        }
+      }
+    }
+
     const hasLock = lockFile !== null;
-    const lockIgnored = hasLock && isGitignored(root, lockFile!);
     detected.push({ name: eco.name, hasManifest, hasLock, lockFile, lockIgnored });
   }
 
   if (detected.length === 0) {
     evidence.push('No recognized dependency manifest found (may be a manifest-less project).');
     return { score: 3, evidence, remediationTips, blocking: false };
+  }
+
+  if (workspace.isMonorepo) {
+    evidence.push(
+      `Monorepo workspace (${workspace.type || 'multi-package'}) with ${workspace.packages.length} package(s) detected.`,
+    );
   }
 
   // A gitignored lockfile is as good as missing for reproducibility purposes

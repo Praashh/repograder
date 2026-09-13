@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { ScanResult } from '../types';
+import { detectWorkspaces } from '../lib/workspace';
 
 const LINTER_FILES = [
   '.eslintrc',
@@ -61,7 +62,7 @@ const CI_CANDIDATES = [
 ];
 
 const CI_LINT_CMD_RE =
-  /\b(npm\s+(run\s+)?lint|pnpm\s+(run\s+)?lint|yarn\s+(run\s+)?lint|eslint|ruff|flake8|biome|golangci-lint|rubocop|cargo\s+clippy)\b/i;
+  /\b(npm\s+(run\s+)?lint|pnpm\s+(-r\s+|--filter\s+\S+\s+)?(run\s+)?lint|yarn\s+(run\s+|workspaces\s+run\s+)?lint|turbo(\s+run)?\s+lint|nx\s+(run-many\s+-t|run)\s+lint|lerna\s+run\s+lint|bun\s+run\s+lint|eslint|ruff|flake8|biome|golangci-lint|rubocop|cargo\s+clippy)\b/i;
 
 function existsAll(root: string, names: string[]): string[] {
   return names.filter((n) => fs.existsSync(path.join(root, n)));
@@ -79,6 +80,20 @@ function pyprojectHasLintConfig(root: string): boolean {
     return /\[tool\.(ruff|black|flake8|isort|pylint)\]/.test(content);
   } catch {
     return false;
+  }
+}
+
+function packageJsonHasLintOrFormat(dir: string): { hasEslint: boolean; hasPrettier: boolean } {
+  const p = path.join(dir, 'package.json');
+  if (!fs.existsSync(p)) return { hasEslint: false, hasPrettier: false };
+  try {
+    const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
+    return {
+      hasEslint: Boolean(pkg.eslintConfig),
+      hasPrettier: Boolean(pkg.prettier),
+    };
+  } catch {
+    return { hasEslint: false, hasPrettier: false };
   }
 }
 
@@ -137,20 +152,104 @@ function unprotectedEnvFiles(root: string): string[] {
 function scan(root: string): ScanResult {
   const evidence: string[] = [];
   const remediationTips: string[] = [];
-  const linters = existsAll(root, LINTER_FILES);
-  const formatters = existsAll(root, FORMATTER_FILES);
+
+  const workspace = detectWorkspaces(root);
+
+  // Root checks
+  const rootLinters = existsAll(root, LINTER_FILES);
+  const rootFormatters = existsAll(root, FORMATTER_FILES);
   const precommitFiles = existsAll(root, PRECOMMIT_FILES);
   const huskyPresent = hasHusky(root);
-  const pyprojectLint = pyprojectHasLintConfig(root);
+  const rootPyprojectLint = pyprojectHasLintConfig(root);
+  const rootPkgConfig = packageJsonHasLintOrFormat(root);
   const ciLint = ciEnforcesLint(root);
 
-  const hasLinter = linters.length > 0 || pyprojectLint;
-  const hasFormatter = formatters.length > 0 || pyprojectLint;
+  // Subproject checks
+  const subprojectLinterHits: { pkgName: string; relPath: string; file: string }[] = [];
+  const subprojectFormatterHits: { pkgName: string; relPath: string; file: string }[] = [];
+  let subprojectPyprojectLint = false;
+  let subprojectEslintPkg = false;
+  let subprojectPrettierPkg = false;
+
+  for (const pkg of workspace.packages) {
+    const pkgLinters = existsAll(pkg.path, LINTER_FILES);
+    for (const f of pkgLinters) {
+      subprojectLinterHits.push({
+        pkgName: pkg.name,
+        relPath: pkg.relPath,
+        file: path.join(pkg.relPath, f),
+      });
+    }
+
+    const pkgFormatters = existsAll(pkg.path, FORMATTER_FILES);
+    for (const f of pkgFormatters) {
+      subprojectFormatterHits.push({
+        pkgName: pkg.name,
+        relPath: pkg.relPath,
+        file: path.join(pkg.relPath, f),
+      });
+    }
+
+    if (pyprojectHasLintConfig(pkg.path)) subprojectPyprojectLint = true;
+    const pkgChecks = packageJsonHasLintOrFormat(pkg.path);
+    if (pkgChecks.hasEslint) subprojectEslintPkg = true;
+    if (pkgChecks.hasPrettier) subprojectPrettierPkg = true;
+  }
+
+  const hasLinter =
+    rootLinters.length > 0 ||
+    rootPyprojectLint ||
+    rootPkgConfig.hasEslint ||
+    subprojectLinterHits.length > 0 ||
+    subprojectPyprojectLint ||
+    subprojectEslintPkg;
+
+  const hasFormatter =
+    rootFormatters.length > 0 ||
+    rootPyprojectLint ||
+    rootPkgConfig.hasPrettier ||
+    subprojectFormatterHits.length > 0 ||
+    subprojectPyprojectLint ||
+    subprojectPrettierPkg;
+
   const hasEnforcement = precommitFiles.length > 0 || huskyPresent || ciLint;
 
-  if (linters.length) evidence.push(`Linter config: ${linters.join(', ')}.`);
-  if (formatters.length) evidence.push(`Formatter config: ${formatters.join(', ')}.`);
-  if (pyprojectLint) evidence.push('pyproject.toml declares lint/format tool config.');
+  if (rootLinters.length) evidence.push(`Linter config: ${rootLinters.join(', ')}.`);
+  if (subprojectLinterHits.length > 0) {
+    if (subprojectLinterHits.length <= 4) {
+      const details = subprojectLinterHits.map((h) => h.file).join(', ');
+      evidence.push(`Linter config found in workspace subprojects: ${details}.`);
+    } else {
+      const distinctPkgs = new Set(subprojectLinterHits.map((h) => h.relPath)).size;
+      evidence.push(
+        `Linter configs detected across ${distinctPkgs} workspace package(s) (${subprojectLinterHits.length} config file(s)).`,
+      );
+    }
+  }
+
+  if (rootFormatters.length) evidence.push(`Formatter config: ${rootFormatters.join(', ')}.`);
+  if (subprojectFormatterHits.length > 0) {
+    if (subprojectFormatterHits.length <= 4) {
+      const details = subprojectFormatterHits.map((h) => h.file).join(', ');
+      evidence.push(`Formatter config found in workspace subprojects: ${details}.`);
+    } else {
+      const distinctPkgs = new Set(subprojectFormatterHits.map((h) => h.relPath)).size;
+      evidence.push(
+        `Formatter configs detected across ${distinctPkgs} workspace package(s) (${subprojectFormatterHits.length} config file(s)).`,
+      );
+    }
+  }
+
+  if (rootPyprojectLint || subprojectPyprojectLint) {
+    evidence.push('pyproject.toml declares lint/format tool config.');
+  }
+  if (rootPkgConfig.hasEslint || subprojectEslintPkg) {
+    evidence.push('package.json declares eslintConfig configuration.');
+  }
+  if (rootPkgConfig.hasPrettier || subprojectPrettierPkg) {
+    evidence.push('package.json declares prettier formatting configuration.');
+  }
+
   if (precommitFiles.length)
     evidence.push(`Pre-commit hooks configured: ${precommitFiles.join(', ')}.`);
   if (huskyPresent) evidence.push('Husky git hooks present.');

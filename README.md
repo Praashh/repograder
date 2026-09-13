@@ -126,7 +126,7 @@ jobs:
 - [x] Multi-agent modern rule detection (`.cursor/rules/`, `.github/copilot-instructions.md`, `.windsurfrules`)
 - [x] Dedicated Type Safety & Static Verification scanner (`tsconfig.json`, `mypy`, `pyright`, Rust, Go)
 - [ ] Local environment reproducibility scanner (devcontainers, `Dockerfile`, `.nvmrc`, `.python-version`)
-- [ ] Monorepo & multi-package workspace support (pnpm workspaces, Turborepo, Cargo workspaces)
+- [x] Monorepo & multi-package workspace support (pnpm workspaces, Turborepo, Cargo workspaces)
 - [ ] Interactive remediation (`repograder fix`) to auto-create missing `.env.example`, `.gitignore` entries, and stubs
 
 ### CLI & Configuration
@@ -137,7 +137,7 @@ jobs:
 - [ ] Custom configuration (`repograder.config.json` / `--config`) for per-project thresholds and rules
 - [ ] SARIF & Code Climate export formats (`--format sarif`) for GitHub Code Scanning integration
 
-### 🤖 CI/CD & Integrations
+### CI/CD & Integrations
 
 - [ ] GitHub Action bot to post scorecard diffs and regressions directly on pull requests
 - [ ] Pre-commit hook plugin (`repograder` git hook integration)

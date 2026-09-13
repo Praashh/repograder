@@ -3,6 +3,7 @@ import path from 'path';
 import { fileExistsCI } from '../lib/walk';
 import * as git from '../lib/git';
 import type { ScanResult } from '../types';
+import { detectWorkspaces } from '../lib/workspace';
 
 const AGENT_FILE_NAMES = ['AGENTS.md', 'CLAUDE.md', '.cursorrules', 'GEMINI.md', '.windsurfrules'];
 const README_NAMES = ['README.md', 'README', 'README.rst', 'README.txt'];
@@ -13,6 +14,10 @@ const TASK_RUNNER_FILES = [
   'Taskfile.yml',
   'Taskfile.yaml',
   'Taskfile.json',
+  'turbo.json',
+  'nx.json',
+  'pnpm-workspace.yaml',
+  'lerna.json',
 ];
 
 const STALE_DAYS_THRESHOLD = 90; // context file untouched for 90+ days while repo is active
@@ -55,13 +60,26 @@ function scan(root: string): ScanResult {
   const remediationTips: string[] = [];
   let score = 1;
 
+  const workspace = detectWorkspaces(root);
+
   const readmePath = fileExistsCI(root, README_NAMES);
   const directAgentFile = fileExistsCI(root, AGENT_FILE_NAMES);
   const modernAgentRule = findModernAgentRules(root);
   const archFile = fileExistsCI(root, ARCH_NAMES);
 
-  const chosenAgentFile =
+  // Subproject context files
+  const subprojectAgentFiles: string[] = [];
+  for (const pkg of workspace.packages) {
+    const pkgAgent = fileExistsCI(pkg.path, AGENT_FILE_NAMES);
+    if (pkgAgent) subprojectAgentFiles.push(path.relative(root, pkgAgent));
+  }
+
+  let chosenAgentFile =
     directAgentFile || (modernAgentRule ? path.join(root, modernAgentRule) : null);
+
+  if (!chosenAgentFile && subprojectAgentFiles.length > 0) {
+    chosenAgentFile = path.join(root, subprojectAgentFiles[0]);
+  }
 
   if (!readmePath && !chosenAgentFile) {
     evidence.push('No README or agent-specific context file found.');
@@ -83,6 +101,15 @@ function scan(root: string): ScanResult {
     score = 3;
     const relAgentFile = path.relative(root, chosenAgentFile);
     evidence.push(`Agent context file found: ${relAgentFile}.`);
+
+    if (
+      subprojectAgentFiles.length > 1 ||
+      (!directAgentFile && !modernAgentRule && subprojectAgentFiles.length > 0)
+    ) {
+      evidence.push(
+        `Workspace package instruction file(s) detected: ${subprojectAgentFiles.slice(0, 3).join(', ')}.`,
+      );
+    }
 
     // Freshness check
     const isGitRepo = git.isGitRepo(root);
@@ -132,12 +159,12 @@ function scan(root: string): ScanResult {
       // ignore read errors
     }
 
-    // Task runner bonus: a Makefile/justfile gives agents a clear, unified entry point
+    // Task runner bonus: a Makefile/justfile/turbo.json gives agents a clear, unified entry point
     const taskRunner = TASK_RUNNER_FILES.find((f) => fs.existsSync(path.join(root, f)));
     if (taskRunner) {
       score = Math.min(5, score + 1);
       evidence.push(
-        `Task runner found (${taskRunner}) — agents have a clear entry point for common commands.`,
+        `Task runner / workspace orchestrator found (${taskRunner}) — agents have a clear entry point for common commands.`,
       );
     }
 

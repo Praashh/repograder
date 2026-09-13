@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { detectWorkspaces } from './lib/workspace';
 
 export interface InitOptions {
   force?: boolean;
@@ -16,6 +17,8 @@ export function initAgentsMd(
       message: 'AGENTS.md already exists. Use --force to overwrite.',
     };
   }
+
+  const workspace = detectWorkspaces(targetDir);
 
   const sections: string[] = [];
   sections.push('# AGENTS.md');
@@ -50,11 +53,26 @@ export function initAgentsMd(
     }
   }
 
+  if (workspace.isMonorepo) {
+    if (workspace.type === 'turborepo') {
+      if (!buildCommands.length) buildCommands.push('turbo run build');
+      if (!testCommands.length) testCommands.push('turbo run test');
+      if (!lintCommands.length) lintCommands.push('turbo run lint');
+      if (!typecheckCommands.length) typecheckCommands.push('turbo run typecheck');
+    } else if (workspace.type === 'pnpm') {
+      if (!buildCommands.length) buildCommands.push('pnpm -r build');
+      if (!testCommands.length) testCommands.push('pnpm -r test');
+      if (!lintCommands.length) lintCommands.push('pnpm -r lint');
+      if (!typecheckCommands.length) typecheckCommands.push('pnpm -r typecheck');
+    }
+  }
+
   const cargoPath = path.join(targetDir, 'Cargo.toml');
   if (fs.existsSync(cargoPath)) {
-    buildCommands.push('cargo build');
-    testCommands.push('cargo test');
-    lintCommands.push('cargo clippy');
+    const isCargoWorkspace = workspace.isMonorepo && workspace.type === 'cargo';
+    buildCommands.push(isCargoWorkspace ? 'cargo build --workspace' : 'cargo build');
+    testCommands.push(isCargoWorkspace ? 'cargo test --workspace' : 'cargo test');
+    lintCommands.push(isCargoWorkspace ? 'cargo clippy --workspace' : 'cargo clippy');
   }
 
   const pyprojectPath = path.join(targetDir, 'pyproject.toml');
@@ -75,9 +93,11 @@ export function initAgentsMd(
     testCommands.push('make test');
   }
 
-  sections.push(
-    `Repository instructions and operational context for AI coding agents working on ${projectName}.`,
-  );
+  const overviewDesc = workspace.isMonorepo
+    ? `Repository instructions and operational context for AI coding agents working on ${projectName} (monorepo with ${workspace.packages.length} packages).`
+    : `Repository instructions and operational context for AI coding agents working on ${projectName}.`;
+
+  sections.push(overviewDesc);
   sections.push('');
   sections.push('## Build & Test');
   if (buildCommands.length > 0) {
