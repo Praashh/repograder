@@ -7,7 +7,7 @@
 
 AI coding agents (like Claude Code, Cursor, Copilot Workspace, Codex, Devin) struggle or fail silently when a codebase lacks test harnesses, stale documentation, monster files, or missing linters.
 
-**`repograder`** evaluates your repository across 6 fundamental dimensions, detects potential failure modes, outputs a readiness scorecard with a granular **Readiness Index (0–100)**, and generates actionable, copy-pasteable remediation commands.
+**`repograder`** evaluates your repository across 7 fundamental dimensions, detects potential failure modes, outputs a readiness scorecard with a granular **Readiness Index (0–100)**, and generates actionable, copy-pasteable remediation commands.
 
 ---
 
@@ -39,8 +39,26 @@ repograder scan
 # Scaffold a tailored AGENTS.md for your stack
 repograder init
 
+# Automatically remediate missing .gitignore entries, .env.example, and test stubs
+repograder fix
+
+# Preview fixes without writing changes
+repograder fix --dry-run
+
+# Install git pre-commit hook gate
+repograder install-hook
+
+# Compare base and head reports for regressions in CI
+repograder diff base.json head.json
+
 # Scan another directory or project
 repograder scan ../my-service
+
+# Output GitHub Code Scanning SARIF format
+repograder --format sarif > results.sarif
+
+# Output GitLab Code Climate JSON
+repograder --format codeclimate > gl-code-quality-report.json
 
 # Output GitHub Actions-ready Markdown (ideal for $GITHUB_STEP_SUMMARY)
 repograder --markdown >> $GITHUB_STEP_SUMMARY
@@ -57,17 +75,27 @@ repograder --badge
 
 ### Options & Subcommands
 
-| Command / Flag       | Description                                                                                |
-| -------------------- | ------------------------------------------------------------------------------------------ |
-| `[path]`             | Path to repository to scan (defaults to current directory `.`)                             |
-| `init [path]`        | Scaffold a tailored `AGENTS.md` context file based on detected tools and package manifests |
-| `--format <type>`    | Output format: `text` (default), `json`, `markdown`, `badge`                               |
-| `--markdown`, `--md` | Shorthand for `--format markdown`                                                          |
-| `--json`             | Shorthand for `--format json`                                                              |
-| `--badge`            | Output Shields.io badge endpoint JSON schema                                               |
-| `--fail-under <1-5>` | Exit with code 1 if ceiling readiness score is below this threshold                        |
-| `--force`, `-f`      | Overwrite existing `AGENTS.md` when running `init`                                         |
-| `-h, --help`         | Show usage help and options                                                                |
+| Command / Flag            | Description                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------ |
+| `[path]`                  | Path to repository to scan (defaults to current directory `.`)                             |
+| `init [path]`             | Scaffold a tailored `AGENTS.md` context file based on detected tools and package manifests |
+| `fix [path]`              | Automatically scaffold missing `.gitignore` rules, `.env.example`, and test stubs          |
+| `install-hook [path]`     | Install native Git pre-commit hook to guard readiness on commit                            |
+| `diff <base> <head>`      | Compare two JSON reports and generate markdown scorecard regression diff                   |
+| `--format <type>`         | Output format: `text` (default), `json`, `markdown`, `badge`, `sarif`, `codeclimate`       |
+| `--sarif`                 | Shorthand for `--format sarif` (GitHub Code Scanning)                                      |
+| `--codeclimate`           | Shorthand for `--format codeclimate` (GitLab / Code Climate)                               |
+| `--markdown`, `--md`      | Shorthand for `--format markdown`                                                          |
+| `--json`                  | Shorthand for `--format json`                                                              |
+| `--badge`                 | Output Shields.io badge endpoint JSON schema                                               |
+| `--config <path>`         | Path to custom configuration file (`repograder.config.json`)                               |
+| `--fail-under <1-5>`      | Exit with code 1 if ceiling readiness score is below this threshold                        |
+| `--dry-run`               | Preview remediation actions without writing files                                          |
+| `--slack-webhook <url>`   | Dispatch report to Slack webhook channel                                                   |
+| `--discord-webhook <url>` | Dispatch report to Discord webhook channel                                                 |
+| `--notify`                | Send alerts to configured webhooks                                                         |
+| `--force`, `-f`           | Overwrite existing `AGENTS.md` when running `init`                                         |
+| `-h, --help`              | Show usage help and options                                                                |
 
 ---
 
@@ -125,23 +153,23 @@ jobs:
 - [x] Auto-scaffold tailored `AGENTS.md` via `repograder init`
 - [x] Multi-agent modern rule detection (`.cursor/rules/`, `.github/copilot-instructions.md`, `.windsurfrules`)
 - [x] Dedicated Type Safety & Static Verification scanner (`tsconfig.json`, `mypy`, `pyright`, Rust, Go)
-- [ ] Local environment reproducibility scanner (devcontainers, `Dockerfile`, `.nvmrc`, `.python-version`)
+- [x] Local environment reproducibility scanner (devcontainers, `Dockerfile`, `.nvmrc`, `.python-version`)
 - [x] Monorepo & multi-package workspace support (pnpm workspaces, Turborepo, Cargo workspaces)
-- [ ] Interactive remediation (`repograder fix`) to auto-create missing `.env.example`, `.gitignore` entries, and stubs
+- [x] Interactive remediation (`repograder fix`) to auto-create missing `.env.example`, `.gitignore` entries, and stubs
 
 ### CLI & Configuration
 
 - [x] Configurable CI thresholds (`--fail-under <1-5>`)
 - [x] Rich Markdown export for GitHub Actions summaries (`--markdown`)
 - [x] Shields.io endpoint badge generator (`--badge`)
-- [ ] Custom configuration (`repograder.config.json` / `--config`) for per-project thresholds and rules
-- [ ] SARIF & Code Climate export formats (`--format sarif`) for GitHub Code Scanning integration
+- [x] Custom configuration (`repograder.config.json` / `--config`) for per-project thresholds and rules
+- [x] SARIF & Code Climate export formats (`--format sarif`, `--format codeclimate`) for GitHub Code Scanning and GitLab CI
 
 ### CI/CD & Integrations
 
-- [ ] GitHub Action bot to post scorecard diffs and regressions directly on pull requests
-- [ ] Pre-commit hook plugin (`repograder` git hook integration)
-- [ ] Slack / Discord webhook alerting for repository readiness drops
+- [x] GitHub Action bot to post scorecard diffs and regressions directly on pull requests (`action.yml`, `repograder diff`)
+- [x] Pre-commit hook plugin (`repograder` git hook integration & `.pre-commit-hooks.yaml`)
+- [x] Slack / Discord webhook alerting for repository readiness drops (`--slack-webhook`, `--discord-webhook`, `--notify`)
 
 ---
 

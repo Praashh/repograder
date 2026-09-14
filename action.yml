@@ -1,0 +1,42 @@
+name: 'repograder'
+description: 'Score codebase readiness for AI coding agents and prevent readiness regressions'
+author: 'praashh'
+inputs:
+  path:
+    description: 'Path to repository root to scan'
+    required: false
+    default: '.'
+  fail-under:
+    description: 'Minimum readiness ceiling (1-5) required to pass'
+    required: false
+    default: '1'
+  format:
+    description: 'Report output format (text, json, markdown, badge, sarif, codeclimate)'
+    required: false
+    default: 'markdown'
+  post-summary:
+    description: 'Post report to GitHub Step Summary'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Generate Agent Readiness Report
+      shell: bash
+      run: |
+        if [ "${{ inputs.post-summary }}" = "true" ]; then
+          npx repograder ${{ inputs.path }} --markdown >> $GITHUB_STEP_SUMMARY
+        fi
+        if [ "${{ inputs.fail-under }}" != "" ]; then
+          npx repograder ${{ inputs.path }} --fail-under ${{ inputs.fail-under }}
+        fi
+
+branding:
+  icon: 'check-circle'
+  color: 'green'

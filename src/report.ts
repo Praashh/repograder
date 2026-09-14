@@ -164,3 +164,118 @@ export function renderBadge({ ceiling, level }: RunAllResult): string {
     color: hexColorForScore(ceiling),
   });
 }
+
+export function renderSARIF({ results }: RunAllResult, _targetPath: string): string {
+  const rules = [];
+  const sarifResults = [];
+
+  for (const r of results) {
+    const ruleId = `REPO-${r.id}`;
+    rules.push({
+      id: ruleId,
+      name: r.id,
+      shortDescription: {
+        text: r.label,
+      },
+      fullDescription: {
+        text: `Evaluates ${r.label} for AI coding agent readiness.`,
+      },
+      defaultConfiguration: {
+        level: r.blocking || r.score <= 2 ? 'error' : r.score === 3 ? 'warning' : 'note',
+      },
+      help: {
+        text:
+          r.remediationTips && r.remediationTips.length > 0
+            ? r.remediationTips.join('\n')
+            : `Improve ${r.label} to achieve autonomous agent readiness.`,
+      },
+    });
+
+    if (r.score < 5) {
+      const level = r.blocking || r.score <= 2 ? 'error' : r.score === 3 ? 'warning' : 'note';
+      const evidenceStr = r.evidence.join('; ');
+      const tipStr =
+        r.remediationTips && r.remediationTips.length > 0
+          ? ` Remediation: ${r.remediationTips.join(' | ')}`
+          : '';
+      sarifResults.push({
+        ruleId,
+        level,
+        message: {
+          text: `[${r.label}] Score ${r.score}/5: ${evidenceStr}.${tipStr}`,
+        },
+        locations: [
+          {
+            physicalLocation: {
+              artifactLocation: {
+                uri: '.',
+                uriBaseId: '%SRCROOT%',
+              },
+              region: {
+                startLine: 1,
+                startColumn: 1,
+              },
+            },
+          },
+        ],
+      });
+    }
+  }
+
+  const sarifLog = {
+    $schema:
+      'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
+    version: '2.1.0',
+    runs: [
+      {
+        tool: {
+          driver: {
+            name: 'repograder',
+            version: '0.1.4',
+            informationUri: 'https://github.com/Praashh/repograder',
+            rules,
+          },
+        },
+        results: sarifResults,
+      },
+    ],
+  };
+
+  return JSON.stringify(sarifLog, null, 2);
+}
+
+export function renderCodeClimate({ results }: RunAllResult, _targetPath: string): string {
+  const issues = [];
+  for (const r of results) {
+    if (r.score < 5) {
+      const severity =
+        r.blocking || r.score <= 1
+          ? 'blocker'
+          : r.score === 2
+            ? 'critical'
+            : r.score === 3
+              ? 'major'
+              : 'minor';
+      issues.push({
+        type: 'issue',
+        check_name: `repograder/${r.id}`,
+        description: `[${r.label}] (Score ${r.score}/5): ${r.evidence[0] || 'Suboptimal score'}`,
+        content: {
+          body:
+            r.remediationTips && r.remediationTips.length > 0
+              ? r.remediationTips.map((t) => `- ${t}`).join('\n')
+              : r.evidence.join('\n'),
+        },
+        categories: ['Bug Risk', 'Clarity'],
+        severity,
+        location: {
+          path: '.',
+          lines: {
+            begin: 1,
+          },
+        },
+      });
+    }
+  }
+  return JSON.stringify(issues, null, 2);
+}

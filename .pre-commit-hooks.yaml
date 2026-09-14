@@ -1,0 +1,7 @@
+- id: repograder
+  name: repograder
+  description: Score codebase readiness for AI coding agents
+  entry: npx repograder
+  language: node
+  pass_filenames: false
+  always_run: true
