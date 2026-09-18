@@ -1,4 +1,6 @@
 import type { RunAllResult } from './types';
+import { c } from './ui/colors';
+import { renderBox } from './ui/box';
 
 export interface DimensionDiff {
   id: string;
@@ -14,6 +16,82 @@ export interface ScoreDiff {
   isRegression: boolean;
   dimensionDiffs: DimensionDiff[];
   markdown: string;
+  terminal: string;
+}
+
+export function renderTerminalDiff(
+  diff: Omit<ScoreDiff, 'terminal'>,
+  base: RunAllResult,
+  head: RunAllResult,
+  repoName = 'Repository',
+): string {
+  const lines: string[] = [];
+  const statusColor = diff.isRegression
+    ? c.red
+    : diff.ceilingDelta > 0 || diff.indexDelta > 0
+      ? c.brightGreen
+      : c.cyan;
+  const statusText = diff.isRegression
+    ? '⚠️  Regression Detected'
+    : diff.ceilingDelta > 0 || diff.indexDelta > 0
+      ? '🎉  Readiness Improved!'
+      : '✅  No Change';
+
+  lines.push('');
+  lines.push(
+    renderBox(
+      [
+        `${c.bold('Scorecard Diff')}  ${c.dim('for')} ${c.bold(repoName)}`,
+        `${statusColor(statusText)}  ${c.dim(
+          `(Ceiling: ${diff.ceilingDelta >= 0 ? '+' : ''}${diff.ceilingDelta}, Index: ${
+            diff.indexDelta >= 0 ? '+' : ''
+          }${diff.indexDelta})`,
+        )}`,
+      ],
+      { style: 'rounded', borderColor: diff.isRegression ? c.red : c.green },
+    ),
+  );
+  lines.push('');
+
+  lines.push(`  ${c.bold('OVERALL METRICS')}`);
+  const cSign =
+    diff.ceilingDelta > 0
+      ? c.brightGreen(`+${diff.ceilingDelta}`)
+      : diff.ceilingDelta < 0
+        ? c.red(`${diff.ceilingDelta}`)
+        : c.dim('0');
+  const iSign =
+    diff.indexDelta > 0
+      ? c.brightGreen(`+${diff.indexDelta}`)
+      : diff.indexDelta < 0
+        ? c.red(`${diff.indexDelta}`)
+        : c.dim('0');
+  lines.push(
+    `  Readiness Level: ${c.dim(`${base.level.name} (${base.ceiling}/5)`)} ──▶ ${c.bold(
+      `${head.level.name} (${head.ceiling}/5)`,
+    )}  [${cSign}]`,
+  );
+  lines.push(
+    `  Readiness Index: ${c.dim(`${base.indexScore}/100 (${base.grade})`)} ──▶ ${c.bold(
+      `${head.indexScore}/100 (${head.grade})`,
+    )}  [${iSign}]`,
+  );
+  lines.push('');
+
+  lines.push(`  ${c.bold('DIMENSION BREAKDOWN')}`);
+  for (const d of diff.dimensionDiffs) {
+    const deltaColor = d.delta > 0 ? c.brightGreen : d.delta < 0 ? c.red : c.gray;
+    const deltaIcon = d.delta > 0 ? '▲' : d.delta < 0 ? '▼' : '●';
+    const deltaStr = d.delta > 0 ? `+${d.delta}` : `${d.delta}`;
+    lines.push(
+      `  ${deltaColor(deltaIcon)} ${deltaColor(deltaStr.padStart(2))}  ${c.bold(
+        d.label.padEnd(35),
+      )} ${c.dim(`${d.baseScore}/5`)} ──▶ ${c.bold(`${d.headScore}/5`)}`,
+    );
+  }
+  lines.push('');
+
+  return lines.join('\n');
 }
 
 export function compareResults(
@@ -97,5 +175,17 @@ export function compareResults(
     isRegression,
     dimensionDiffs,
     markdown: lines.join('\n'),
+    terminal: renderTerminalDiff(
+      {
+        ceilingDelta,
+        indexDelta,
+        isRegression,
+        dimensionDiffs,
+        markdown: lines.join('\n'),
+      },
+      base,
+      head,
+      repoName,
+    ),
   };
 }
