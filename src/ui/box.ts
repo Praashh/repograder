@@ -52,7 +52,8 @@ export function renderBox(lines: string[], options: BoxOptions = {}): string {
 
   // Target width (clamp nicely between 70 and 80 chars)
   const termWidth = process.stdout.columns || 80;
-  const targetWidth = options.width ?? Math.min(Math.max(minRequiredWidth + 2, 74), Math.max(74, termWidth - 2));
+  const targetWidth =
+    options.width ?? Math.min(Math.max(minRequiredWidth + 2, 74), Math.max(74, termWidth - 2));
   const innerWidth = targetWidth - 2;
 
   const result: string[] = [];

@@ -48,6 +48,18 @@ repograder fix --dry-run
 # Install git pre-commit hook gate
 repograder install-hook
 
+# Benchmark AI Friendliness ($ / 1,000 static issues, tokens, and compute)
+repograder benchmark
+
+# Benchmark using Gemini 2.0 Flash pricing tier
+repograder benchmark --model flash
+
+# Compare against prior benchmark snapshot
+repograder benchmark --compare base.json
+
+# Gate CI if cost exceeds budget threshold
+repograder benchmark --fail-over-cost 15.00
+
 # Compare base and head reports for regressions in CI
 repograder diff base.json head.json
 
@@ -75,27 +87,33 @@ repograder --badge
 
 ### Options & Subcommands
 
-| Command / Flag            | Description                                                                                |
-| ------------------------- | ------------------------------------------------------------------------------------------ |
-| `[path]`                  | Path to repository to scan (defaults to current directory `.`)                             |
-| `init [path]`             | Scaffold a tailored `AGENTS.md` context file based on detected tools and package manifests |
-| `fix [path]`              | Automatically scaffold missing `.gitignore` rules, `.env.example`, and test stubs          |
-| `install-hook [path]`     | Install native Git pre-commit hook to guard readiness on commit                            |
-| `diff <base> <head>`      | Compare two JSON reports and generate markdown scorecard regression diff                   |
-| `--format <type>`         | Output format: `text` (default), `json`, `markdown`, `badge`, `sarif`, `codeclimate`       |
-| `--sarif`                 | Shorthand for `--format sarif` (GitHub Code Scanning)                                      |
-| `--codeclimate`           | Shorthand for `--format codeclimate` (GitLab / Code Climate)                               |
-| `--markdown`, `--md`      | Shorthand for `--format markdown`                                                          |
-| `--json`                  | Shorthand for `--format json`                                                              |
-| `--badge`                 | Output Shields.io badge endpoint JSON schema                                               |
-| `--config <path>`         | Path to custom configuration file (`repograder.config.json`)                               |
-| `--fail-under <1-5>`      | Exit with code 1 if ceiling readiness score is below this threshold                        |
-| `--dry-run`               | Preview remediation actions without writing files                                          |
-| `--slack-webhook <url>`   | Dispatch report to Slack webhook channel                                                   |
-| `--discord-webhook <url>` | Dispatch report to Discord webhook channel                                                 |
-| `--notify`                | Send alerts to configured webhooks                                                         |
-| `--force`, `-f`           | Overwrite existing `AGENTS.md` when running `init`                                         |
-| `-h, --help`              | Show usage help and options                                                                |
+| Command / Flag            | Description                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| `[path]`                  | Path to repository to scan (defaults to current directory `.`)                               |
+| `benchmark [path]`        | Quantify AI friendliness: time, tokens, compute, and $ cost to fix 1,000 static issues       |
+| `init [path]`             | Scaffold a tailored `AGENTS.md` context file based on detected tools and package manifests   |
+| `fix [path]`              | Automatically scaffold missing `.gitignore` rules, `.env.example`, and test stubs            |
+| `install-hook [path]`     | Install native Git pre-commit hook to guard readiness on commit                              |
+| `diff <base> <head>`      | Compare two JSON reports and generate markdown scorecard regression diff                     |
+| `--model <name>`          | Benchmark pricing preset: `sonnet` (default), `flash`, `gpt4o`, `haiku`, `deepseek`, `local` |
+| `--compare <file>`        | Compare current benchmark against a prior JSON snapshot to track cost reductions             |
+| `--save <file>`           | Save benchmark results to JSON file for CI tracking and PR summaries                         |
+| `--fail-over-cost <$>`    | CI cost gate: exit 1 if benchmark cost per 1k issues exceeds budget threshold                |
+| `--live`                  | Run empirical live agent benchmark using active environment API keys                         |
+| `--format <type>`         | Output format: `text` (default), `json`, `markdown`, `badge`, `sarif`, `codeclimate`         |
+| `--sarif`                 | Shorthand for `--format sarif` (GitHub Code Scanning)                                        |
+| `--codeclimate`           | Shorthand for `--format codeclimate` (GitLab / Code Climate)                                 |
+| `--markdown`, `--md`      | Shorthand for `--format markdown`                                                            |
+| `--json`                  | Shorthand for `--format json`                                                                |
+| `--badge`                 | Output Shields.io badge endpoint JSON schema                                                 |
+| `--config <path>`         | Path to custom configuration file (`repograder.config.json`)                                 |
+| `--fail-under <1-5>`      | Exit with code 1 if ceiling readiness score is below this threshold                          |
+| `--dry-run`               | Preview remediation actions without writing files                                            |
+| `--slack-webhook <url>`   | Dispatch report to Slack webhook channel                                                     |
+| `--discord-webhook <url>` | Dispatch report to Discord webhook channel                                                   |
+| `--notify`                | Send alerts to configured webhooks                                                           |
+| `--force`, `-f`           | Overwrite existing `AGENTS.md` when running `init`                                           |
+| `-h, --help`              | Show usage help and options                                                                  |
 
 ---
 
@@ -112,6 +130,46 @@ repograder init
 - One-click build and test commands
 - Coding conventions and modularity guidelines
 - Essential agent operating rules
+
+---
+
+## ⚡ AI Friendliness Benchmark (Version 1)
+
+`repograder benchmark` quantifies the bottom-line engineering cost of interacting with AI coding agents:
+
+> **"How much time, tokens, compute, and $ does fixing 1,000 static issues take on this codebase?"**
+
+Messy codebases with monster files, missing specs, and loose types cause agent token consumption and retry loops to explode. Repograder breaks down these costs and provides a concrete roadmap to reduce them.
+
+### What It Measures:
+
+- **$ Cost / 1,000 Issues:** Projected or empirical dollar spend across frontier model tiers.
+- **Tokens / 1,000 Issues:** Total prompt context ingested and completion tokens generated.
+- **Time / 1,000 Issues:** Developer waiting time and CI test feedback loops.
+- **Compute Efficiency:** Average agent turns and tool calls required per issue resolution.
+- **First-Pass Accuracy:** Rate at which agents resolve static defects on Turn 1 without retries.
+
+### Supported Model Presets
+
+- `--model sonnet`: Claude 3.5 Sonnet ($3.00 / $15.00 per M tokens) — _Default_
+- `--model flash`: Gemini 2.0 Flash ($0.10 / $0.40 per M tokens)
+- `--model gpt4o`: GPT-4o ($2.50 / $10.00 per M tokens)
+- `--model haiku`: Claude 3.5 Haiku ($0.80 / $4.00 per M tokens)
+- `--model deepseek`: DeepSeek V3 ($0.14 / $0.28 per M tokens)
+- `--model local`: Local / Ollama ($0.00 API cost)
+
+### CI Cost Budget Gating & Progress Tracking
+
+```bash
+# Save baseline snapshot
+repograder benchmark --save baseline.json
+
+# Track cost reductions over time
+repograder benchmark --compare baseline.json
+
+# Fail CI if cost exceeds budget threshold
+repograder benchmark --fail-over-cost 15.00
+```
 
 ---
 
@@ -146,32 +204,6 @@ jobs:
 
 ---
 
-## Roadmap & Future Goals
-
-### Core Scanners & Engine
-
-- [x] Auto-scaffold tailored `AGENTS.md` via `repograder init`
-- [x] Multi-agent modern rule detection (`.cursor/rules/`, `.github/copilot-instructions.md`, `.windsurfrules`)
-- [x] Dedicated Type Safety & Static Verification scanner (`tsconfig.json`, `mypy`, `pyright`, Rust, Go)
-- [x] Local environment reproducibility scanner (devcontainers, `Dockerfile`, `.nvmrc`, `.python-version`)
-- [x] Monorepo & multi-package workspace support (pnpm workspaces, Turborepo, Cargo workspaces)
-- [x] Interactive remediation (`repograder fix`) to auto-create missing `.env.example`, `.gitignore` entries, and stubs
-
-### CLI & Configuration
-
-- [x] Configurable CI thresholds (`--fail-under <1-5>`)
-- [x] Rich Markdown export for GitHub Actions summaries (`--markdown`)
-- [x] Shields.io endpoint badge generator (`--badge`)
-- [x] Custom configuration (`repograder.config.json` / `--config`) for per-project thresholds and rules
-- [x] SARIF & Code Climate export formats (`--format sarif`, `--format codeclimate`) for GitHub Code Scanning and GitLab CI
-
-### CI/CD & Integrations
-
-- [x] GitHub Action bot to post scorecard diffs and regressions directly on pull requests (`action.yml`, `repograder diff`)
-- [x] Pre-commit hook plugin (`repograder` git hook integration & `.pre-commit-hooks.yaml`)
-- [x] Slack / Discord webhook alerting for repository readiness drops (`--slack-webhook`, `--discord-webhook`, `--notify`)
-
----
 
 ## License
 

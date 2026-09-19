@@ -8,8 +8,10 @@ const isColorSupported = (): boolean => {
 
 const enabled = isColorSupported();
 
-const wrap = (open: string, close: string) => (str: string | number): string =>
-  enabled ? `${open}${str}${close}` : String(str);
+const wrap =
+  (open: string, close: string) =>
+  (str: string | number): string =>
+    enabled ? `${open}${str}${close}` : String(str);
 
 const boldFn = wrap('\x1b[1m', '\x1b[22m');
 const inverseFn = wrap('\x1b[7m', '\x1b[27m');

@@ -20,11 +20,19 @@ import { sendSlackNotification, sendDiscordNotification } from '../src/notify';
 import { c } from '../src/ui/colors';
 import { renderBox } from '../src/ui/box';
 import { createSpinner } from '../src/ui/spinner';
+import {
+  runBenchmark,
+  renderBenchmarkTerminal,
+  renderBenchmarkMarkdown,
+  renderBenchmarkJSON,
+  renderBenchmarkCompact,
+  compareBenchmarks,
+} from '../src/benchmark';
 
-const SUBCOMMANDS = ['scan', 'init', 'fix', 'install-hook', 'diff', 'help'];
+const SUBCOMMANDS = ['scan', 'init', 'fix', 'install-hook', 'diff', 'benchmark', 'help'];
 
 interface ParsedArgs {
-  command: 'scan' | 'init' | 'fix' | 'install-hook' | 'diff' | 'help';
+  command: 'scan' | 'init' | 'fix' | 'install-hook' | 'diff' | 'benchmark' | 'help';
   target: string;
   diffTarget?: string;
   format?: OutputFormat;
@@ -37,6 +45,12 @@ interface ParsedArgs {
   notify?: boolean;
   force: boolean;
   help: boolean;
+  model?: string;
+  live?: boolean;
+  sample?: number;
+  save?: string;
+  compare?: string;
+  failOverCost?: number;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -55,6 +69,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     else if (sub === 'fix') args.command = 'fix';
     else if (sub === 'install-hook') args.command = 'install-hook';
     else if (sub === 'diff') args.command = 'diff';
+    else if (sub === 'benchmark') args.command = 'benchmark';
     else if (sub === 'help') args.help = true;
     else if (sub === 'scan') args.command = 'scan';
     rest = rest.slice(1);
@@ -124,8 +139,36 @@ function parseArgs(argv: string[]): ParsedArgs {
       args.force = true;
     } else if (arg === '--help' || arg === '-h') {
       args.help = true;
+    } else if (arg === '--live') {
+      args.live = true;
+    } else if (arg === '--simulate') {
+      args.live = false;
+    } else if (arg === '--model') {
+      args.model = rest[++i];
+    } else if (arg.startsWith('--model=')) {
+      args.model = arg.split('=')[1];
+    } else if (arg === '--sample') {
+      const next = rest[++i];
+      if (next && !isNaN(Number(next))) args.sample = Number(next);
+    } else if (arg.startsWith('--sample=')) {
+      const val = arg.split('=')[1];
+      if (val && !isNaN(Number(val))) args.sample = Number(val);
+    } else if (arg === '--save') {
+      args.save = rest[++i];
+    } else if (arg.startsWith('--save=')) {
+      args.save = arg.split('=')[1];
+    } else if (arg === '--compare') {
+      args.compare = rest[++i];
+    } else if (arg.startsWith('--compare=')) {
+      args.compare = arg.split('=')[1];
+    } else if (arg === '--fail-over-cost') {
+      const next = rest[++i];
+      if (next && !isNaN(Number(next))) args.failOverCost = Number(next);
+    } else if (arg.startsWith('--fail-over-cost=')) {
+      const val = arg.split('=')[1];
+      if (val && !isNaN(Number(val))) args.failOverCost = Number(val);
     } else if (!arg.startsWith('-')) {
-      if (args.command === 'diff' && args.target !== '.') {
+      if ((args.command === 'diff' || args.command === 'benchmark') && args.target !== '.') {
         args.diffTarget = arg;
       } else {
         args.target = arg;
@@ -147,10 +190,20 @@ function printHelp(): void {
     '',
     `  ${c.bold(c.white('COMMANDS'))}`,
     `    ${c.cyan('scan')} ${c.dim('[path]')}              Run 7-dimension readiness scan on target directory (default)`,
+    `    ${c.cyan('benchmark')} ${c.dim('[path]')}         Benchmark AI friendliness: time, tokens, compute, and $ / 1k issues`,
     `    ${c.cyan('fix')} ${c.dim('[path]')}               Auto-remediate missing stubs, .env.example, and .gitignore`,
     `    ${c.cyan('init')} ${c.dim('[path]')}              Scaffold tailored AGENTS.md context documentation`,
     `    ${c.cyan('install-hook')} ${c.dim('[path]')}      Install git pre-commit quality gate for agent readiness`,
     `    ${c.cyan('diff')} ${c.dim('<base> <head>')}       Compare two JSON reports to detect regressions`,
+    '',
+    `  ${c.bold(c.white('BENCHMARK OPTIONS'))}`,
+    `    ${c.yellow('--model <name>')}          Model pricing preset (sonnet, flash, gpt4o, haiku, deepseek, local)`,
+    `    ${c.yellow('--live')}                  Run empirical live agent benchmark using active API keys`,
+    `    ${c.yellow('--simulate')}              Run instantaneous analytical physics simulation (default)`,
+    `    ${c.yellow('--sample <n>')}            Number of defect probes to sample in live mode (default: 3)`,
+    `    ${c.yellow('--compare <base.json>')}   Compare against prior benchmark snapshot to track ROI progress`,
+    `    ${c.yellow('--save <path>')}           Save benchmark result to JSON file for CI tracking`,
+    `    ${c.yellow('--fail-over-cost <$')}     CI gate: fail if cost per 1k issues exceeds budget threshold`,
     '',
     `  ${c.bold(c.white('OUTPUT FORMATS'))}`,
     `    ${c.yellow('--format text')}           Rich terminal UI with hero scorecard & roadmap (default)`,
@@ -173,8 +226,10 @@ function printHelp(): void {
     '',
     `  ${c.bold(c.white('EXAMPLES'))}`,
     `    ${c.dim('$')} ${c.green('repograder')}                                 ${c.dim('# Scan current directory')}`,
+    `    ${c.dim('$')} ${c.green('repograder benchmark')}                       ${c.dim('# Benchmark AI friendliness ($/1k issues)')}`,
+    `    ${c.dim('$')} ${c.green('repograder benchmark --model flash')}         ${c.dim('# Benchmark on Gemini 2.0 Flash pricing')}`,
+    `    ${c.dim('$')} ${c.green('repograder benchmark --compare base.json')}   ${c.dim('# Compare progress against previous run')}`,
     `    ${c.dim('$')} ${c.green('repograder --compact')}                       ${c.dim('# Condensed 1-line check')}`,
-    `    ${c.dim('$')} ${c.green('repograder fix --dry-run')}                   ${c.dim('# Preview automated remediations')}`,
     `    ${c.dim('$')} ${c.green('repograder fix')}                             ${c.dim('# Apply remediation stubs')}`,
     `    ${c.dim('$')} ${c.green('repograder diff base.json head.json')}        ${c.dim('# Compare reports in terminal')}`,
     `    ${c.dim('$')} ${c.green('repograder --fail-under 4')}                  ${c.dim('# CI gate: fail if readiness < 4')}`,
@@ -275,9 +330,7 @@ async function main(): Promise<void> {
       fixLines.push(`  ${c.brightGreen('✔')} No automatic remediations needed. Codebase is clean!`);
     } else {
       for (const act of res.actions) {
-        const statusTag = act.applied
-          ? c.brightGreen('✔ applied')
-          : c.yellow('🔍 preview');
+        const statusTag = act.applied ? c.brightGreen('✔ applied') : c.yellow('🔍 preview');
         fixLines.push(`  ${statusTag}  ${c.bold(act.file)}`);
         fixLines.push(`             ${c.dim(act.description)}`);
       }
@@ -321,12 +374,7 @@ async function main(): Promise<void> {
       console.error('');
       console.error(
         renderBox(
-          [
-            '',
-            `  ${c.red('✖')} ${c.bold('Initialization failed')}`,
-            `  ${c.dim(res.message)}`,
-            '',
-          ],
+          ['', `  ${c.red('✖')} ${c.bold('Initialization failed')}`, `  ${c.dim(res.message)}`, ''],
           { title: c.bold(c.red(' ❌ ERROR ')), borderColor: c.red, style: 'rounded' },
         ),
       );
@@ -335,7 +383,117 @@ async function main(): Promise<void> {
     }
   }
 
-  // 5. scan subcommand
+  // 5. benchmark subcommand
+  if (args.command === 'benchmark') {
+    // Check if comparing two JSON files directly: repograder benchmark diff base.json head.json
+    if (args.diffTarget && fs.existsSync(args.target) && fs.existsSync(args.diffTarget)) {
+      try {
+        const baseJson = JSON.parse(fs.readFileSync(args.target, 'utf8'));
+        const headJson = JSON.parse(fs.readFileSync(args.diffTarget, 'utf8'));
+        const diff = compareBenchmarks(baseJson, headJson, path.basename(args.diffTarget));
+        if (args.format === 'markdown') {
+          console.log(diff.markdown);
+        } else if (args.format === 'json') {
+          console.log(JSON.stringify(diff, null, 2));
+        } else {
+          console.log(diff.terminal);
+        }
+        process.exit(diff.costDeltaUsd > 0 ? 1 : 0);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`Error comparing benchmark JSON files: ${msg}`);
+        process.exit(1);
+      }
+    }
+
+    const resolvedFormat: OutputFormat = args.format || config.format || 'text';
+    const isInteractiveTTY =
+      Boolean(process.stdout && process.stdout.isTTY) && resolvedFormat === 'text';
+
+    let benchSpinner;
+    if (isInteractiveTTY && !args.compact) {
+      benchSpinner = createSpinner(
+        'Benchmarking codebase AI friendliness for coding agents...',
+      ).start();
+    }
+
+    const benchResult = await runBenchmark(target, {
+      model: args.model || config.benchmark?.defaultModel,
+      mode: args.live ? 'live' : 'analytical',
+      sample: args.sample || config.benchmark?.sampleSize,
+    });
+
+    if (benchSpinner) {
+      benchSpinner.stop();
+    }
+
+    // Compare against prior benchmark if requested
+    if (args.compare) {
+      const comparePath = path.resolve(process.cwd(), args.compare);
+      if (!fs.existsSync(comparePath)) {
+        console.error(`Error: Compare file not found at "${comparePath}"`);
+        process.exit(1);
+      }
+      try {
+        const baseJson = JSON.parse(fs.readFileSync(comparePath, 'utf8'));
+        const diff = compareBenchmarks(baseJson, benchResult, path.basename(target));
+        if (args.format === 'markdown') {
+          console.log(diff.markdown);
+        } else if (args.format === 'json') {
+          console.log(JSON.stringify(diff, null, 2));
+        } else {
+          console.log(diff.terminal);
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`Error reading comparison benchmark: ${msg}`);
+        process.exit(1);
+      }
+    } else {
+      let output: string;
+      if (args.compact) {
+        output = renderBenchmarkCompact(benchResult);
+      } else {
+        switch (resolvedFormat) {
+          case 'json':
+            output = renderBenchmarkJSON(benchResult);
+            break;
+          case 'markdown':
+            output = renderBenchmarkMarkdown(benchResult);
+            break;
+          case 'text':
+          default:
+            output = renderBenchmarkTerminal(benchResult);
+            break;
+        }
+      }
+      console.log(output);
+    }
+
+    // Save snapshot if requested
+    if (args.save) {
+      const savePath = path.resolve(process.cwd(), args.save);
+      fs.writeFileSync(savePath, JSON.stringify(benchResult, null, 2), 'utf8');
+      console.log(
+        `\n${c.brightGreen('✔')} ${c.dim('Benchmark snapshot saved to:')} ${c.bold(savePath)}\n`,
+      );
+    }
+
+    // CI Cost gate check
+    const maxCost = args.failOverCost ?? config.benchmark?.failOverCost;
+    if (maxCost !== undefined && benchResult.metrics.costPer1kUsd > maxCost) {
+      console.error(
+        `\n${c.red('✖')} CI Gate: Benchmark cost ($${benchResult.metrics.costPer1kUsd.toFixed(
+          2,
+        )}) exceeded fail-over threshold ($${maxCost.toFixed(2)})\n`,
+      );
+      process.exit(1);
+    }
+
+    process.exit(0);
+  }
+
+  // 6. scan subcommand
   const resolvedFormat: OutputFormat = args.format || config.format || 'text';
   const isInteractiveTTY =
     Boolean(process.stdout && process.stdout.isTTY) && resolvedFormat === 'text';

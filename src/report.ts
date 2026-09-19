@@ -91,9 +91,7 @@ export function renderText(
     const icon = renderStatusIcon(r.score);
     const scorePill = renderScorePill(r.score);
     const meter = renderScoreMeter(r.score, 5);
-    const blockingBadge = r.blocking
-      ? ` ${c.bold(c.inverse(c.yellow(' BLOCKING ')))}`
-      : '';
+    const blockingBadge = r.blocking ? ` ${c.bold(c.inverse(c.yellow(' BLOCKING ')))}` : '';
 
     lines.push(`  ${icon} ${scorePill}  ${meter}  ${c.bold(r.label)}${blockingBadge}`);
 

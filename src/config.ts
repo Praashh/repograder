@@ -14,12 +14,19 @@ export interface WebhookConfig {
   discord?: string;
 }
 
+export interface BenchmarkConfig {
+  defaultModel?: string;
+  failOverCost?: number;
+  sampleSize?: number;
+}
+
 export interface RepograderConfig {
   failUnder?: number;
   format?: OutputFormat;
   ignorePaths?: string[];
   dimensions?: Record<string, DimensionConfig>;
   webhooks?: WebhookConfig;
+  benchmark?: BenchmarkConfig;
 }
 
 const DEFAULT_CONFIG_FILES = ['repograder.config.json', '.repograderrc.json'];
