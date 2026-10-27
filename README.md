@@ -141,7 +141,7 @@ repograder init
 
 ---
 
-## ⚡ AI Friendliness Benchmark (Version 1)
+## AI Friendliness Benchmark (Version 1)
 
 `repograder benchmark` quantifies the bottom-line engineering cost of interacting with AI coding agents:
 
