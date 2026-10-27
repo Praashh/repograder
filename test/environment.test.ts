@@ -11,18 +11,32 @@ assert.ok(result.score >= 1 && result.score <= 5, 'environment score is in valid
 assert.ok(result.evidence.length > 0, 'environment evidence is present');
 assert.strictEqual(result.blocking, false, 'environment scanner is non-blocking');
 
-// repograder repo has package.json with engines.node specified, but no Dockerfile/devcontainer
-assert.strictEqual(result.score, 4, `expected repograder environment score 4, got ${result.score}`);
+// repograder repo has package.json with engines.node specified and .devcontainer/devcontainer.json
+assert.strictEqual(result.score, 5, `expected repograder environment score 5, got ${result.score}`);
 assert.ok(
   result.evidence.some((e) => e.includes('engines.node')),
   'evidence mentions engines.node',
 );
+assert.ok(
+  result.evidence.some((e) => e.includes('.devcontainer')),
+  'evidence mentions .devcontainer',
+);
 
-// Test fixture: empty dir
+// Test fixture: empty dir -> neutral 3
 const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repograder-env-empty-'));
 const emptyRes = scan(emptyDir);
 assert.strictEqual(emptyRes.score, 3, 'empty directory should return neutral score 3');
 fs.rmSync(emptyDir, { recursive: true, force: true });
+
+// Test fixture: pinned runtime only (no container) -> 4/5
+const pinnedOnlyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repograder-env-pinned-'));
+fs.writeFileSync(
+  path.join(pinnedOnlyDir, 'package.json'),
+  JSON.stringify({ name: 'test-app', engines: { node: '>=18' } }),
+);
+const pinnedRes = scan(pinnedOnlyDir);
+assert.strictEqual(pinnedRes.score, 4, `expected pinned only score 4, got ${pinnedRes.score}`);
+fs.rmSync(pinnedOnlyDir, { recursive: true, force: true });
 
 // Test fixture: pinned runtime + Dockerfile -> 5/5
 const fullEnvDir = fs.mkdtempSync(path.join(os.tmpdir(), 'repograder-env-full-'));

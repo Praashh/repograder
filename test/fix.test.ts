@@ -19,7 +19,7 @@ try {
 
   // 1. Dry run test
   const dryRunRes = runFix(tempDir, { dryRun: true });
-  assert.ok(dryRunRes.actions.length >= 2, 'dry run should identify needed actions');
+  assert.ok(dryRunRes.actions.length >= 4, 'dry run should identify needed actions');
   assert.ok(dryRunRes.summary.includes('Dry run:'), 'summary indicates dry run');
   assert.strictEqual(
     fs.existsSync(path.join(tempDir, '.gitignore')),
@@ -30,6 +30,11 @@ try {
     fs.existsSync(path.join(tempDir, '.env.example')),
     false,
     '.env.example should not be written on dry run',
+  );
+  assert.strictEqual(
+    fs.existsSync(path.join(tempDir, '.devcontainer', 'devcontainer.json')),
+    false,
+    'devcontainer should not be written on dry run',
   );
 
   // 2. Real run test
@@ -70,6 +75,27 @@ try {
   // Verify test stub was created (since package.json has no test script and no test files)
   const testStubPath = path.join(tempDir, 'test/smoke.test.js');
   assert.ok(fs.existsSync(testStubPath), 'test/smoke.test.js stub was created');
+
+  // Verify devcontainer was created
+  const devcontainerPath = path.join(tempDir, '.devcontainer', 'devcontainer.json');
+  assert.ok(fs.existsSync(devcontainerPath), 'devcontainer.json was created');
+  const devcontainerJson = JSON.parse(fs.readFileSync(devcontainerPath, 'utf8'));
+  assert.ok(
+    devcontainerJson.image.includes('typescript-node'),
+    'Node devcontainer image configured',
+  );
+
+  // Verify .editorconfig was created
+  const editorconfigPath = path.join(tempDir, '.editorconfig');
+  assert.ok(fs.existsSync(editorconfigPath), '.editorconfig was created');
+
+  // Verify .github/dependabot.yml was created
+  const dependabotPath = path.join(tempDir, '.github', 'dependabot.yml');
+  assert.ok(fs.existsSync(dependabotPath), '.github/dependabot.yml was created');
+
+  // Verify .github/workflows/agent-ci.yml was created
+  const workflowPath = path.join(tempDir, '.github', 'workflows', 'agent-ci.yml');
+  assert.ok(fs.existsSync(workflowPath), '.github/workflows/agent-ci.yml was created');
 
   // 3. Re-run fix (idempotency check)
   const rerunRes = runFix(tempDir, { dryRun: false });

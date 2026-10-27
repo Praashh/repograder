@@ -81,6 +81,12 @@ repograder --json > report.json
 # Fail CI pipeline if readiness level is below threshold
 repograder --fail-under 4
 
+# Output interactive single-file HTML report
+repograder --html > report.html
+
+# Live watch mode while refactoring
+repograder --watch
+
 # Output Shields.io badge schema
 repograder --badge
 ```
@@ -92,7 +98,7 @@ repograder --badge
 | `[path]`                  | Path to repository to scan (defaults to current directory `.`)                               |
 | `benchmark [path]`        | Quantify AI friendliness: time, tokens, compute, and $ cost to fix 1,000 static issues       |
 | `init [path]`             | Scaffold a tailored `AGENTS.md` context file based on detected tools and package manifests   |
-| `fix [path]`              | Automatically scaffold missing `.gitignore` rules, `.env.example`, and test stubs            |
+| `fix [path]`              | Automatically scaffold devcontainer, CI workflows, `.editorconfig`, `.gitignore`, stubs      |
 | `install-hook [path]`     | Install native Git pre-commit hook to guard readiness on commit                              |
 | `diff <base> <head>`      | Compare two JSON reports and generate markdown scorecard regression diff                     |
 | `--model <name>`          | Benchmark pricing preset: `sonnet` (default), `flash`, `gpt4o`, `haiku`, `deepseek`, `local` |
@@ -100,7 +106,9 @@ repograder --badge
 | `--save <file>`           | Save benchmark results to JSON file for CI tracking and PR summaries                         |
 | `--fail-over-cost <$>`    | CI cost gate: exit 1 if benchmark cost per 1k issues exceeds budget threshold                |
 | `--live`                  | Run empirical live agent benchmark using active environment API keys                         |
-| `--format <type>`         | Output format: `text` (default), `json`, `markdown`, `badge`, `sarif`, `codeclimate`         |
+| `--format <type>`         | Output format: `text` (default), `html`, `json`, `markdown`, `badge`, `sarif`, `codeclimate` |
+| `--html`                  | Shorthand for `--format html` (interactive visual scorecard & ROI simulator)                 |
+| `--watch, -w`             | Watch directory and re-score live on file changes                                            |
 | `--sarif`                 | Shorthand for `--format sarif` (GitHub Code Scanning)                                        |
 | `--codeclimate`           | Shorthand for `--format codeclimate` (GitLab / Code Climate)                                 |
 | `--markdown`, `--md`      | Shorthand for `--format markdown`                                                            |
@@ -200,10 +208,14 @@ jobs:
       - run: npx repograder --markdown >> $GITHUB_STEP_SUMMARY
       # Fail PR if readiness score drops below Capable (4/5)
       - run: npx repograder --fail-under 4
+
+      # Or using the official composite action:
+      # - uses: praashh/repograder@v1
+      #   with:
+      #     fail-under: '4'
 ```
 
 ---
-
 
 ## License
 

@@ -134,6 +134,20 @@ export function calculateBenchmark(
   const costPerIssueUsd = calculateTokensCost(tokensInPerIssue, tokensOutPerIssue, model);
   const costPer1kUsd = Number((costPerIssueUsd * 1000).toFixed(2));
 
+  // Prompt Cache Hit Modeling: High context readiness (AGENTS.md) yields 80-92% cache hit rates
+  const cacheHitRatePercent = Math.min(
+    92,
+    Math.max(10, Math.round(15 + (contextScore / 5) * 55 + (fileSizeScore / 5) * 22)),
+  );
+  const cachedTokensIn = Math.round(tokensInPerIssue * (cacheHitRatePercent / 100));
+  const fullInputCostPer1k = (tokensInPerIssue / 1_000_000) * model.inputPricePerM * 1000;
+  const cachePrice = model.cacheReadPricePerM ?? model.inputPricePerM * 0.1;
+  const cachedInputCostPer1k =
+    (((tokensInPerIssue - cachedTokensIn) / 1_000_000) * model.inputPricePerM +
+      (cachedTokensIn / 1_000_000) * cachePrice) *
+    1000;
+  const cacheSavingsUsd = Number(Math.max(0, fullInputCostPer1k - cachedInputCostPer1k).toFixed(2));
+
   // Ideal cost (Score 5 across all dimensions, modular files)
   const idealTokensIn = baseSystemTokens + 1.08 * idealFileTokens;
   const idealTokensOut = 1.08 * 280;
@@ -256,6 +270,7 @@ export function calculateBenchmark(
     tokensInPerIssue,
     tokensOutPerIssue,
     secondsPerIssue: Number(secondsPerIssue.toFixed(2)),
+    cacheHitRatePercent,
   };
 
   const breakdown: CostBreakdown = {
@@ -263,6 +278,7 @@ export function calculateBenchmark(
     explorationCostUsd,
     fileBloatCostUsd,
     retryCostUsd,
+    cacheSavingsUsd,
   };
 
   return {

@@ -372,3 +372,5 @@ export function renderCodeClimate({ results }: RunAllResult, _targetPath: string
   }
   return JSON.stringify(issues, null, 2);
 }
+
+export { renderHTML } from './reportHtml';

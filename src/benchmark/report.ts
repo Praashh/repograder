@@ -96,6 +96,13 @@ export function renderBenchmarkTerminal(result: BenchmarkResult): string {
       )}  ${c.dim('(failed passes due to loose types or weak linters)')}`,
     );
   }
+  if (b.cacheSavingsUsd && b.cacheSavingsUsd > 0.05) {
+    lines.push(
+      `  ${c.dim('•')} ${c.brightGreen(c.bold('Prompt Caching Bonus:'))}    -$${b.cacheSavingsUsd.toFixed(
+        2,
+      )}  ${c.dim(`(~${m.cacheHitRatePercent ?? 85}% prompt cache hit rate with frontier models)`)}`,
+    );
+  }
   lines.push('');
 
   // ROI Optimization Roadmap
@@ -147,8 +154,11 @@ export function renderBenchmarkMarkdown(result: BenchmarkResult): string {
     `- **File Bloat Tax:** $${b.fileBloatCostUsd.toFixed(2)}`,
     `- **Exploration Tax:** $${b.explorationCostUsd.toFixed(2)}`,
     `- **Retry & Verification Tax:** $${b.retryCostUsd.toFixed(2)}`,
+    b.cacheSavingsUsd && b.cacheSavingsUsd > 0.05
+      ? `- **Prompt Caching Bonus:** -$${b.cacheSavingsUsd.toFixed(2)} (~${m.cacheHitRatePercent ?? 85}% hit rate)`
+      : '',
     '',
-  ];
+  ].filter(Boolean);
 
   if (result.levers.length > 0) {
     lines.push(`### 🎯 ROI Optimization Roadmap`);

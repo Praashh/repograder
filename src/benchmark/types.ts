@@ -6,6 +6,8 @@ export interface BenchmarkModel {
   provider: 'anthropic' | 'google' | 'openai' | 'deepseek' | 'local' | 'custom';
   inputPricePerM: number;
   outputPricePerM: number;
+  cacheReadPricePerM?: number;
+  cacheWritePricePerM?: number;
   avgTurnLatencyMs: number;
 }
 
@@ -25,6 +27,7 @@ export interface CostBreakdown {
   explorationCostUsd: number;
   fileBloatCostUsd: number;
   retryCostUsd: number;
+  cacheSavingsUsd?: number;
 }
 
 export interface OptimizationLever {
@@ -47,6 +50,7 @@ export interface BenchmarkMetrics {
   tokensInPerIssue: number;
   tokensOutPerIssue: number;
   secondsPerIssue: number;
+  cacheHitRatePercent?: number;
 }
 
 export interface BenchmarkResult {

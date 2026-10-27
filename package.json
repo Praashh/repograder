@@ -1,6 +1,6 @@
 {
   "name": "repograder",
-  "version": "0.1.7",
+  "version": "0.2.0",
   "description": "CLI that scores a codebase's readiness for AI coding agents across 7 dimensions.",
   "bin": {
     "repograder": "dist/bin/cli.js"

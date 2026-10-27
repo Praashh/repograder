@@ -7,6 +7,8 @@ export const BENCHMARK_MODELS: Record<string, BenchmarkModel> = {
     provider: 'anthropic',
     inputPricePerM: 3.0,
     outputPricePerM: 15.0,
+    cacheReadPricePerM: 0.3,
+    cacheWritePricePerM: 3.75,
     avgTurnLatencyMs: 2500,
   },
   'gemini-2.0-flash': {
@@ -15,6 +17,8 @@ export const BENCHMARK_MODELS: Record<string, BenchmarkModel> = {
     provider: 'google',
     inputPricePerM: 0.1,
     outputPricePerM: 0.4,
+    cacheReadPricePerM: 0.025,
+    cacheWritePricePerM: 0.1,
     avgTurnLatencyMs: 1200,
   },
   'gpt-4o': {
@@ -23,6 +27,8 @@ export const BENCHMARK_MODELS: Record<string, BenchmarkModel> = {
     provider: 'openai',
     inputPricePerM: 2.5,
     outputPricePerM: 10.0,
+    cacheReadPricePerM: 1.25,
+    cacheWritePricePerM: 2.5,
     avgTurnLatencyMs: 2200,
   },
   'claude-3-5-haiku': {
@@ -31,6 +37,8 @@ export const BENCHMARK_MODELS: Record<string, BenchmarkModel> = {
     provider: 'anthropic',
     inputPricePerM: 0.8,
     outputPricePerM: 4.0,
+    cacheReadPricePerM: 0.08,
+    cacheWritePricePerM: 1.0,
     avgTurnLatencyMs: 1400,
   },
   'deepseek-v3': {
@@ -39,6 +47,8 @@ export const BENCHMARK_MODELS: Record<string, BenchmarkModel> = {
     provider: 'deepseek',
     inputPricePerM: 0.14,
     outputPricePerM: 0.28,
+    cacheReadPricePerM: 0.014,
+    cacheWritePricePerM: 0.14,
     avgTurnLatencyMs: 1800,
   },
   local: {
@@ -47,6 +57,8 @@ export const BENCHMARK_MODELS: Record<string, BenchmarkModel> = {
     provider: 'local',
     inputPricePerM: 0.0,
     outputPricePerM: 0.0,
+    cacheReadPricePerM: 0.0,
+    cacheWritePricePerM: 0.0,
     avgTurnLatencyMs: 3500,
   },
 };
@@ -57,7 +69,7 @@ export function getModel(modelId?: string): BenchmarkModel {
   if (!modelId) return BENCHMARK_MODELS[DEFAULT_MODEL_ID];
   const normalized = modelId.toLowerCase().trim();
 
-  // Direct match or alias
+  // Direct match
   if (BENCHMARK_MODELS[normalized]) {
     return BENCHMARK_MODELS[normalized];
   }
@@ -82,13 +94,15 @@ export function getModel(modelId?: string): BenchmarkModel {
     return BENCHMARK_MODELS['local'];
   }
 
-  // Fallback to default
+  // Fallback to custom
   return {
     id: modelId,
     name: modelId,
     provider: 'custom',
     inputPricePerM: 3.0,
     outputPricePerM: 15.0,
+    cacheReadPricePerM: 0.3,
+    cacheWritePricePerM: 3.75,
     avgTurnLatencyMs: 2500,
   };
 }
@@ -97,8 +111,12 @@ export function calculateTokensCost(
   tokensIn: number,
   tokensOut: number,
   model: BenchmarkModel,
+  cachedTokensIn = 0,
 ): number {
-  const inCost = (tokensIn / 1_000_000) * model.inputPricePerM;
+  const freshIn = Math.max(0, tokensIn - cachedTokensIn);
+  const cachePrice = model.cacheReadPricePerM ?? model.inputPricePerM * 0.1;
+  const inCost =
+    (freshIn / 1_000_000) * model.inputPricePerM + (cachedTokensIn / 1_000_000) * cachePrice;
   const outCost = (tokensOut / 1_000_000) * model.outputPricePerM;
   return inCost + outCost;
 }

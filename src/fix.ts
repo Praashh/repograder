@@ -6,6 +6,8 @@ import { walk, isSourceFile } from './lib/walk';
 
 export interface FixOptions {
   dryRun?: boolean;
+  skipDevcontainer?: boolean;
+  skipCi?: boolean;
 }
 
 export interface FixAction {
@@ -35,9 +37,42 @@ const COMMON_GITIGNORE_RULES: { pattern: string; ecosystems?: string[] }[] = [
   { pattern: 'target/', ecosystems: ['Rust'] },
 ];
 
+const CONTAINER_FILES = [
+  '.devcontainer/devcontainer.json',
+  '.devcontainer.json',
+  'Dockerfile',
+  'docker-compose.yml',
+  'docker-compose.yaml',
+  'compose.yaml',
+  'compose.yml',
+  'shell.nix',
+  'default.nix',
+  'flake.nix',
+  '.envrc',
+  'Vagrantfile',
+];
+
+const CI_DIRS = [
+  '.github/workflows',
+  '.gitlab-ci.yml',
+  '.circleci/config.yml',
+  'Jenkinsfile',
+  'azure-pipelines.yml',
+  '.travis.yml',
+  'bitbucket-pipelines.yml',
+];
+
 export function runFix(root: string, options: FixOptions = {}): FixResult {
   const actions: FixAction[] = [];
   const dryRun = Boolean(options.dryRun);
+
+  const hasPkg = fs.existsSync(path.join(root, 'package.json'));
+  const hasPython =
+    fs.existsSync(path.join(root, 'pyproject.toml')) ||
+    fs.existsSync(path.join(root, 'requirements.txt')) ||
+    fs.existsSync(path.join(root, 'Pipfile'));
+  const hasRust = fs.existsSync(path.join(root, 'Cargo.toml'));
+  const hasGo = fs.existsSync(path.join(root, 'go.mod'));
 
   // 1. AGENTS.md check
   const agentsPath = path.join(root, 'AGENTS.md');
@@ -55,12 +90,6 @@ export function runFix(root: string, options: FixOptions = {}): FixResult {
 
   // 2. .gitignore check & remediation
   const gitignorePath = path.join(root, '.gitignore');
-  const hasPkg = fs.existsSync(path.join(root, 'package.json'));
-  const hasPython =
-    fs.existsSync(path.join(root, 'pyproject.toml')) ||
-    fs.existsSync(path.join(root, 'requirements.txt'));
-  const hasRust = fs.existsSync(path.join(root, 'Cargo.toml'));
-
   const activeEcosystems = new Set<string>(['universal']);
   if (hasPkg) activeEcosystems.add('Node');
   if (hasPython) activeEcosystems.add('Python');
@@ -225,6 +254,237 @@ export function runFix(root: string, options: FixOptions = {}): FixResult {
     }
   } catch {
     // ignore
+  }
+
+  // 5. Container & Reproducible Environment Scaffolding (.devcontainer/devcontainer.json)
+  if (!options.skipDevcontainer) {
+    const devcontainerDir = path.join(root, '.devcontainer');
+    const devcontainerFile = path.join(devcontainerDir, 'devcontainer.json');
+    const hasAnyContainer =
+      CONTAINER_FILES.some((f) => fs.existsSync(path.join(root, f))) ||
+      fs.existsSync(devcontainerDir);
+
+    if (!hasAnyContainer) {
+      let image = 'mcr.microsoft.com/devcontainers/base:bookworm';
+      let postCommand = '';
+
+      if (hasPkg) {
+        image = 'mcr.microsoft.com/devcontainers/typescript-node:20-bookworm';
+        postCommand = fs.existsSync(path.join(root, 'pnpm-lock.yaml'))
+          ? 'pnpm install'
+          : fs.existsSync(path.join(root, 'yarn.lock'))
+            ? 'yarn install'
+            : 'npm install';
+      } else if (hasPython) {
+        image = 'mcr.microsoft.com/devcontainers/python:3.11-bookworm';
+        postCommand = fs.existsSync(path.join(root, 'requirements.txt'))
+          ? 'pip install -r requirements.txt'
+          : 'pip install -e .';
+      } else if (hasRust) {
+        image = 'mcr.microsoft.com/devcontainers/rust:1-bookworm';
+        postCommand = 'cargo check';
+      } else if (hasGo) {
+        image = 'mcr.microsoft.com/devcontainers/go:1.22-bookworm';
+        postCommand = 'go mod download';
+      }
+
+      const devcontainerConfig: Record<string, unknown> = {
+        name: path.basename(root) || 'project',
+        image,
+      };
+      if (postCommand) {
+        devcontainerConfig.postCreateCommand = postCommand;
+      }
+
+      const content = JSON.stringify(devcontainerConfig, null, 2) + '\n';
+      actions.push({
+        id: 'create-devcontainer',
+        description: `Scaffold reproducible devcontainer (${image})`,
+        file: '.devcontainer/devcontainer.json',
+        applied: !dryRun,
+        content,
+      });
+
+      if (!dryRun) {
+        if (!fs.existsSync(devcontainerDir)) fs.mkdirSync(devcontainerDir, { recursive: true });
+        fs.writeFileSync(devcontainerFile, content, 'utf8');
+      }
+    }
+  }
+
+  // 6. Standards Scaffolding (.editorconfig)
+  const editorconfigPath = path.join(root, '.editorconfig');
+  if (!fs.existsSync(editorconfigPath)) {
+    const editorConfigContent = [
+      '# EditorConfig configuration: https://EditorConfig.org',
+      'root = true',
+      '',
+      '[*]',
+      'indent_style = space',
+      'indent_size = 2',
+      'end_of_line = lf',
+      'charset = utf-8',
+      'trim_trailing_whitespace = true',
+      'insert_final_newline = true',
+      '',
+      '[*.py]',
+      'indent_size = 4',
+      '',
+      '[*.rs]',
+      'indent_size = 4',
+      '',
+      '[Makefile]',
+      'indent_style = tab',
+      '',
+    ].join('\n');
+
+    actions.push({
+      id: 'create-editorconfig',
+      description: 'Scaffold universal code style standards (.editorconfig)',
+      file: '.editorconfig',
+      applied: !dryRun,
+      content: editorConfigContent,
+    });
+
+    if (!dryRun) {
+      fs.writeFileSync(editorconfigPath, editorConfigContent, 'utf8');
+    }
+  }
+
+  // 7. Automated Dependency Updates (.github/dependabot.yml)
+  const dependabotPath = path.join(root, '.github', 'dependabot.yml');
+  const hasDependabotOrRenovate =
+    fs.existsSync(dependabotPath) ||
+    fs.existsSync(path.join(root, '.github', 'dependabot.yaml')) ||
+    fs.existsSync(path.join(root, 'renovate.json')) ||
+    fs.existsSync(path.join(root, '.renovaterc')) ||
+    fs.existsSync(path.join(root, '.renovaterc.json'));
+
+  if (!hasDependabotOrRenovate && (hasPkg || hasPython || hasRust || hasGo)) {
+    const ecosystems: { eco: string; dir: string }[] = [];
+    if (hasPkg) ecosystems.push({ eco: 'npm', dir: '/' });
+    if (hasPython) ecosystems.push({ eco: 'pip', dir: '/' });
+    if (hasRust) ecosystems.push({ eco: 'cargo', dir: '/' });
+    if (hasGo) ecosystems.push({ eco: 'gomod', dir: '/' });
+    ecosystems.push({ eco: 'github-actions', dir: '/' });
+
+    const dependabotLines = [
+      '# Dependabot configuration scaffolded by repograder fix',
+      'version: 2',
+      'updates:',
+      ...ecosystems.flatMap(({ eco, dir }) => [
+        `  - package-ecosystem: "${eco}"`,
+        `    directory: "${dir}"`,
+        '    schedule:',
+        '      interval: "weekly"',
+      ]),
+      '',
+    ];
+
+    const content = dependabotLines.join('\n');
+    actions.push({
+      id: 'create-dependabot',
+      description: 'Configure automated dependency updates (.github/dependabot.yml)',
+      file: '.github/dependabot.yml',
+      applied: !dryRun,
+      content,
+    });
+
+    if (!dryRun) {
+      const ghDir = path.join(root, '.github');
+      if (!fs.existsSync(ghDir)) fs.mkdirSync(ghDir, { recursive: true });
+      fs.writeFileSync(dependabotPath, content, 'utf8');
+    }
+  }
+
+  // 8. CI Workflow Scaffolding (.github/workflows/agent-ci.yml)
+  if (!options.skipCi) {
+    const hasAnyCi = CI_DIRS.some((d) => fs.existsSync(path.join(root, d)));
+    if (!hasAnyCi && (hasPkg || hasPython || hasRust || hasGo)) {
+      const workflowPath = path.join(root, '.github', 'workflows', 'agent-ci.yml');
+      const workflowLines = [
+        'name: Agent Readiness & CI Quality Gate',
+        '',
+        'on:',
+        '  push:',
+        '    branches: [main, master]',
+        '  pull_request:',
+        '    branches: [main, master]',
+        '',
+        'jobs:',
+        '  verify:',
+        '    runs-on: ubuntu-latest',
+        '    steps:',
+        '      - name: Checkout code',
+        '        uses: actions/checkout@v4',
+        '',
+      ];
+
+      if (hasPkg) {
+        workflowLines.push(
+          '      - name: Setup Node.js',
+          '        uses: actions/setup-node@v4',
+          '        with:',
+          '          node-version: 20',
+          '          cache: npm',
+          '',
+          '      - name: Install dependencies',
+          '        run: npm ci || npm install',
+          '',
+          '      - name: Run tests',
+          '        run: npm test',
+          '',
+        );
+      } else if (hasPython) {
+        workflowLines.push(
+          '      - name: Setup Python',
+          '        uses: actions/setup-python@v5',
+          '        with:',
+          '          python-version: "3.11"',
+          '',
+          '      - name: Install dependencies',
+          '        run: pip install -r requirements.txt || pip install pytest',
+          '',
+          '      - name: Run tests',
+          '        run: pytest',
+          '',
+        );
+      } else if (hasRust) {
+        workflowLines.push(
+          '      - name: Run Cargo Check & Test',
+          '        run: |',
+          '          cargo check',
+          '          cargo test',
+          '',
+        );
+      } else if (hasGo) {
+        workflowLines.push(
+          '      - name: Setup Go',
+          '        uses: actions/setup-go@v5',
+          '        with:',
+          '          go-version: "1.22"',
+          '',
+          '      - name: Run tests',
+          '        run: go test ./...',
+          '',
+        );
+      }
+
+      const content = workflowLines.join('\n');
+      actions.push({
+        id: 'create-ci-workflow',
+        description: 'Scaffold basic CI verification workflow (.github/workflows/agent-ci.yml)',
+        file: '.github/workflows/agent-ci.yml',
+        applied: !dryRun,
+        content,
+      });
+
+      if (!dryRun) {
+        const workflowsDir = path.join(root, '.github', 'workflows');
+        if (!fs.existsSync(workflowsDir)) fs.mkdirSync(workflowsDir, { recursive: true });
+        fs.writeFileSync(workflowPath, content, 'utf8');
+      }
+    }
   }
 
   const appliedCount = actions.filter((a) => a.applied).length;

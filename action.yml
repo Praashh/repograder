@@ -1,42 +1,54 @@
-name: 'repograder'
-description: 'Score codebase readiness for AI coding agents and prevent readiness regressions'
+name: 'Repograder Agent Readiness Gate'
+description: 'Score codebase readiness for AI coding agents and benchmark cost across 7 dimensions'
 author: 'praashh'
+branding:
+  icon: 'check-circle'
+  color: 'green'
+
 inputs:
   path:
-    description: 'Path to repository root to scan'
+    description: 'Path to target repository or workspace directory'
     required: false
     default: '.'
   fail-under:
-    description: 'Minimum readiness ceiling (1-5) required to pass'
+    description: 'Fail CI if ceiling readiness score (1-5) is below threshold'
     required: false
-    default: '1'
+    default: '4'
   format:
-    description: 'Report output format (text, json, markdown, badge, sarif, codeclimate)'
+    description: 'Report output format (text, json, markdown, sarif, codeclimate, html)'
     required: false
-    default: 'markdown'
-  post-summary:
-    description: 'Post report to GitHub Step Summary'
+    default: 'text'
+  benchmark:
+    description: 'Run AI friendliness cost & compute benchmark'
     required: false
-    default: 'true'
+    default: 'false'
+  model:
+    description: 'Model preset for benchmark (sonnet, flash, gpt4o, haiku, deepseek, local)'
+    required: false
+    default: 'sonnet'
+  fail-over-cost:
+    description: 'Fail CI if benchmark cost per 1k issues exceeds budget'
+    required: false
 
 runs:
   using: 'composite'
   steps:
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
-    - name: Generate Agent Readiness Report
+    - name: Run Repograder Gate
       shell: bash
       run: |
-        if [ "${{ inputs.post-summary }}" = "true" ]; then
-          npx repograder ${{ inputs.path }} --markdown >> $GITHUB_STEP_SUMMARY
-        fi
-        if [ "${{ inputs.fail-under }}" != "" ]; then
-          npx repograder ${{ inputs.path }} --fail-under ${{ inputs.fail-under }}
+        CLI_PATH="${{ github.action_path }}/dist/bin/cli.js"
+        if [ ! -f "$CLI_PATH" ]; then
+          CLI_PATH="npx repograder"
+        else
+          CLI_PATH="node $CLI_PATH"
         fi
 
-branding:
-  icon: 'check-circle'
-  color: 'green'
+        if [ "${{ inputs.benchmark }}" = "true" ]; then
+          ARGS="benchmark ${{ inputs.path }} --model ${{ inputs.model }}"
+          if [ -n "${{ inputs.fail-over-cost }}" ]; then
+            ARGS="$ARGS --fail-over-cost ${{ inputs.fail-over-cost }}"
+          fi
+          $CLI_PATH $ARGS
+        else
+          $CLI_PATH "${{ inputs.path }}" --format "${{ inputs.format }}" --fail-under "${{ inputs.fail-under }}"
+        fi

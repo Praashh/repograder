@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 
-export type OutputFormat = 'text' | 'json' | 'markdown' | 'badge' | 'sarif' | 'codeclimate';
+export type OutputFormat =
+  'text' | 'json' | 'markdown' | 'badge' | 'sarif' | 'codeclimate' | 'html';
 
 export interface DimensionConfig {
   enabled?: boolean;
