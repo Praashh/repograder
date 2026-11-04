@@ -1,10 +1,21 @@
 import type { OutputFormat } from './config';
 import { c } from './ui/colors';
 
-export const SUBCOMMANDS = ['scan', 'init', 'fix', 'install-hook', 'diff', 'benchmark', 'help'];
+export const SUBCOMMANDS = [
+  'scan',
+  'init',
+  'fix',
+  'install-hook',
+  'diff',
+  'benchmark',
+  'rules',
+  'help',
+];
 
 export interface ParsedArgs {
-  command: 'scan' | 'init' | 'fix' | 'install-hook' | 'diff' | 'benchmark' | 'help';
+  command: 'scan' | 'init' | 'fix' | 'install-hook' | 'diff' | 'benchmark' | 'rules' | 'help';
+  rulesAction?: 'check' | 'sync';
+  all?: boolean;
   target: string;
   diffTarget?: string;
   format?: OutputFormat;
@@ -43,7 +54,15 @@ export function parseArgs(argv: string[]): ParsedArgs {
     else if (sub === 'install-hook') args.command = 'install-hook';
     else if (sub === 'diff') args.command = 'diff';
     else if (sub === 'benchmark') args.command = 'benchmark';
-    else if (sub === 'help') args.help = true;
+    else if (sub === 'rules') {
+      args.command = 'rules';
+      if (rest[1] === 'check' || rest[1] === 'sync') {
+        args.rulesAction = rest[1];
+        rest = rest.slice(1);
+      } else {
+        args.rulesAction = 'check';
+      }
+    } else if (sub === 'help') args.help = true;
     else if (sub === 'scan') args.command = 'scan';
     rest = rest.slice(1);
   }
@@ -114,6 +133,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
       args.slackWebhook = rest[++i];
     } else if (arg === '--discord-webhook') {
       args.discordWebhook = rest[++i];
+    } else if (arg === '--all' || arg === '-a') {
+      args.all = true;
+    } else if (arg === '--sync') {
+      args.rulesAction = 'sync';
+    } else if (arg === '--check') {
+      args.rulesAction = 'check';
     } else if (arg === '--force' || arg === '-f') {
       args.force = true;
     } else if (arg === '--help' || arg === '-h') {
@@ -170,10 +195,17 @@ export function printHelp(): void {
     `  ${c.bold(c.white('COMMANDS'))}`,
     `    ${c.cyan('scan')} ${c.dim('[path]')}              Run 7-dimension readiness scan on target directory (default)`,
     `    ${c.cyan('benchmark')} ${c.dim('[path]')}         Benchmark AI friendliness: time, tokens, compute, and $ / 1k issues`,
+    `    ${c.cyan('rules')} ${c.dim('[check|sync]')}        Multi-agent rules harmonizer (AGENTS.md, Cursor, Claude, Copilot)`,
     `    ${c.cyan('fix')} ${c.dim('[path]')}               Auto-remediate missing stubs, .env.example, and .gitignore`,
     `    ${c.cyan('init')} ${c.dim('[path]')}              Scaffold tailored AGENTS.md context documentation`,
     `    ${c.cyan('install-hook')} ${c.dim('[path]')}      Install git pre-commit quality gate for agent readiness`,
     `    ${c.cyan('diff')} ${c.dim('<base> <head>')}       Compare two JSON reports to detect regressions`,
+    '',
+    `  ${c.bold(c.white('MULTI-AGENT RULES OPTIONS'))}`,
+    `    ${c.yellow('rules check')}             Inspect status and detect rules drift across all agent targets`,
+    `    ${c.yellow('rules sync')}              Compile & synchronize AGENTS.md to Cursor, Claude, Copilot, Windsurf`,
+    `    ${c.yellow('--all, -a')}               Scaffold or sync all agent rule environments (used with init/rules)`,
+    `    ${c.yellow('--dry-run')}               Preview synchronized changes without writing files`,
     '',
     `  ${c.bold(c.white('BENCHMARK OPTIONS'))}`,
     `    ${c.yellow('--model <name>')}          Model pricing preset (sonnet, flash, gpt4o, haiku, deepseek, local)`,
@@ -198,9 +230,9 @@ export function printHelp(): void {
     `  ${c.bold(c.white('OPTIONS & CI GATES'))}`,
     `    ${c.yellow('--watch, -w')}             Watch directory and re-score live on file changes`,
     `    ${c.yellow('--fail-under <1-5>')}      Exit with code 1 if ceiling score is below threshold`,
-    `    ${c.yellow('--dry-run')}               Preview remediation actions without modifying files (fix)`,
+    `    ${c.yellow('--dry-run')}               Preview remediation actions without modifying files (fix/rules)`,
     `    ${c.yellow('--config <path>')}         Custom configuration path (default: repograder.config.json)`,
-    `    ${c.yellow('--force, -f')}             Overwrite existing AGENTS.md when running init`,
+    `    ${c.yellow('--force, -f')}             Overwrite existing files when running init or rules sync`,
     `    ${c.yellow('--slack-webhook <u>')}     Send report notification to Slack incoming webhook`,
     `    ${c.yellow('--discord-webhook <u>')}   Send report notification to Discord incoming webhook`,
     `    ${c.yellow('--notify')}                Dispatch notifications to configured webhooks`,
@@ -208,6 +240,9 @@ export function printHelp(): void {
     '',
     `  ${c.bold(c.white('EXAMPLES'))}`,
     `    ${c.dim('$')} ${c.green('repograder')}                                 ${c.dim('# Scan current directory')}`,
+    `    ${c.dim('$')} ${c.green('repograder rules check')}                     ${c.dim('# Check multi-agent rules drift')}`,
+    `    ${c.dim('$')} ${c.green('repograder rules sync')}                      ${c.dim('# Sync AGENTS.md to Cursor, Claude, Copilot')}`,
+    `    ${c.dim('$')} ${c.green('repograder init --all')}                      ${c.dim('# Scaffold AGENTS.md and all agent formats')}`,
     `    ${c.dim('$')} ${c.green('repograder benchmark')}                       ${c.dim('# Benchmark AI friendliness ($/1k issues)')}`,
     `    ${c.dim('$')} ${c.green('repograder benchmark --model flash')}         ${c.dim('# Benchmark on Gemini 2.0 Flash pricing')}`,
     `    ${c.dim('$')} ${c.green('repograder benchmark --compare base.json')}   ${c.dim('# Compare progress against previous run')}`,

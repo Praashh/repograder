@@ -16,6 +16,12 @@ import { initAgentsMd } from '../src/init';
 import { runFix } from '../src/fix';
 import { installGitHook } from '../src/hook';
 import { compareResults } from '../src/diff';
+import {
+  checkRules,
+  syncRules,
+  renderRulesCheckTerminal,
+  renderRulesSyncTerminal,
+} from '../src/rules';
 import { loadConfig, type OutputFormat } from '../src/config';
 import { sendSlackNotification, sendDiscordNotification } from '../src/notify';
 import { c } from '../src/ui/colors';
@@ -162,6 +168,13 @@ async function main(): Promise<void> {
         ),
       );
       console.log('');
+
+      if (args.all) {
+        const syncRes = syncRules(target, { force: args.force });
+        console.log(renderRulesSyncTerminal(syncRes));
+        console.log('');
+      }
+
       process.exit(0);
     } else {
       console.error('');
@@ -173,6 +186,31 @@ async function main(): Promise<void> {
       );
       console.error('');
       process.exit(1);
+    }
+  }
+
+  // 5. rules subcommand
+  if (args.command === 'rules') {
+    if (args.rulesAction === 'sync') {
+      const syncRes = syncRules(target, { dryRun: args.dryRun, force: args.force });
+      if (args.format === 'json') {
+        console.log(JSON.stringify(syncRes, null, 2));
+      } else {
+        console.log('');
+        console.log(renderRulesSyncTerminal(syncRes, args.dryRun));
+        console.log('');
+      }
+      process.exit(0);
+    } else {
+      const checkRes = checkRules(target);
+      if (args.format === 'json') {
+        console.log(JSON.stringify(checkRes, null, 2));
+      } else {
+        console.log('');
+        console.log(renderRulesCheckTerminal(checkRes));
+        console.log('');
+      }
+      process.exit(checkRes.inSync ? 0 : 1);
     }
   }
 

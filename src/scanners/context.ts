@@ -154,9 +154,40 @@ function scan(root: string): ScanResult {
             `Expand ${relAgentFile} with explicit shell commands for install, test, and build.`,
           );
         }
+
+        // Prompt cache economics audit (Anthropic & OpenAI threshold is 1,024 tokens)
+        const estimatedTokens = Math.round(content.length / 4);
+        if (estimatedTokens >= 1024) {
+          evidence.push(
+            `Prompt cache ready: ${relAgentFile} (~${estimatedTokens} tokens) meets the 1,024-token prefix threshold for Anthropic/OpenAI prompt caching (up to 90% cost savings).`,
+          );
+        } else {
+          evidence.push(
+            `Prompt cache note: ${relAgentFile} has ~${estimatedTokens} tokens (<1,024-token threshold for Anthropic prompt caching discount).`,
+          );
+          remediationTips.push(
+            `Expand ${relAgentFile} with project runbooks, domain models, or architecture guidelines to exceed 1,024 tokens and unlock prompt caching discounts.`,
+          );
+        }
       }
     } catch {
       // ignore read errors
+    }
+
+    // Multi-agent rules presence check
+    const altRules: string[] = [];
+    if (fs.existsSync(path.join(root, '.cursor', 'rules'))) altRules.push('Cursor');
+    if (fs.existsSync(path.join(root, '.claude', 'CLAUDE.md'))) altRules.push('Claude Code');
+    if (fs.existsSync(path.join(root, '.github', 'copilot-instructions.md')))
+      altRules.push('GitHub Copilot');
+    if (fs.existsSync(path.join(root, '.windsurfrules'))) altRules.push('Windsurf');
+
+    if (altRules.length > 0) {
+      evidence.push(`Multi-agent rule ecosystem detected (${altRules.join(', ')}).`);
+    } else {
+      remediationTips.push(
+        'Run repograder rules sync to automatically harmonize AGENTS.md across Cursor, Claude Code, and Copilot.',
+      );
     }
 
     // Task runner bonus: a Makefile/justfile/turbo.json gives agents a clear, unified entry point

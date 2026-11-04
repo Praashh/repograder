@@ -39,6 +39,15 @@ repograder scan
 # Scaffold a tailored AGENTS.md for your stack
 repograder init
 
+# Scaffold AGENTS.md and harmonize rules across all agent formats
+repograder init --all
+
+# Check multi-agent rules drift across Cursor, Claude Code, Copilot, and Windsurf
+repograder rules check
+
+# Compile and synchronize AGENTS.md to Cursor (.mdc), Claude, Copilot, and Windsurf
+repograder rules sync
+
 # Automatically remediate missing .gitignore entries, .env.example, and test stubs
 repograder fix
 
@@ -98,9 +107,11 @@ repograder --badge
 | `[path]`                  | Path to repository to scan (defaults to current directory `.`)                               |
 | `benchmark [path]`        | Quantify AI friendliness: time, tokens, compute, and $ cost to fix 1,000 static issues       |
 | `init [path]`             | Scaffold a tailored `AGENTS.md` context file based on detected tools and package manifests   |
+| `rules [check             | sync]`                                                                                       | Multi-agent rules harmonizer: detect drift and sync across Cursor, Claude, Copilot, Windsurf |
 | `fix [path]`              | Automatically scaffold devcontainer, CI workflows, `.editorconfig`, `.gitignore`, stubs      |
 | `install-hook [path]`     | Install native Git pre-commit hook to guard readiness on commit                              |
 | `diff <base> <head>`      | Compare two JSON reports and generate markdown scorecard regression diff                     |
+| `--all, -a`               | Scaffold or synchronize all agent environments (`init --all`, `rules sync`)                  |
 | `--model <name>`          | Benchmark pricing preset: `sonnet` (default), `flash`, `gpt4o`, `haiku`, `deepseek`, `local` |
 | `--compare <file>`        | Compare current benchmark against a prior JSON snapshot to track cost reductions             |
 | `--save <file>`           | Save benchmark results to JSON file for CI tracking and PR summaries                         |
